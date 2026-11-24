@@ -1,0 +1,83 @@
+# Lets Dependabot's weekly plugin update of a site merge itself once its checks pass (template plan
+# T9), called by the site's own plugin-updates.yml (written by bin/tools-pin from
+# tools/site-workflows/plugin-updates.yml; T17, T18): only a pull request opened by Dependabot into
+# main that changes nothing but site-packages/, and in its lock file nothing but WordPress.org
+# plugins, whose files the dev site checks against WordPress.org's checksums. Anything else
+# (composer/installers, which runs code as Composer installs; any tool, the tools' own release
+# included) waits for the user's review. It switches on GitHub's auto-merge, by rebase; the
+# required checks still decide, and the merge changes nothing on staging or live, which get a
+# tested version only when the user deploys. A pull request that fails, or falls behind main, stays
+# open, and the weekly versions check opens an issue about it after a few days.
+#
+# Nothing from the pull request runs here: the checkout is main's own code (the base commit), the
+# tools are installed from main's lock file, and the pull request's lock file is fetched as data
+# only.
+name: site-plugin-updates
+
+on:
+  workflow_call:
+
+# Nothing by default; the one job asks for what switching on auto-merge needs, which the caller
+# grants.
+permissions: {}
+
+jobs:
+  auto-merge:
+    # Dependabot's own pull requests into main only; Dependabot's workflows get a read-only token
+    # unless the permissions below raise it.
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR_URL: ${{ github.event.pull_request.html_url }}
+    steps:
+      # main's own code; pinned by commit like the others.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+
+      # Only the shared rule (tools/site-packages.sh) is needed, read from main's own tools release.
+      # This job holds a token that can merge, so Composer runs none of the packages' own code
+      # (--no-plugins --no-scripts); it only unpacks them. Otherwise as in site-check.yml.
+      - name: Install the tools (main's composer.lock)
+        env:
+          COMPOSER_AUTH: '{"github-oauth": {"github.com": "${{ github.token }}"}}'
+        run: >-
+          mkdir -p vendor bin &&
+          docker run --rm -w /app -e COMPOSER_AUTH
+          -v "$PWD/composer.json:/app/composer.json:ro" -v "$PWD/composer.lock:/app/composer.lock:ro"
+          -v "$PWD/vendor:/app/vendor" -v "$PWD/bin:/app/bin"
+          composer:2.11.1 composer install --no-interaction --no-progress --no-plugins --no-scripts
+
+      - name: Change only WordPress.org plugins in site-packages/?
+        id: scope
+        env:
+          REPOSITORY: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          outside="$(gh pr view "$PR_URL" --json files --jq '.files[].path' | grep -v '^site-packages/' || true)"
+          if [ -n "$outside" ]; then
+            printf 'Changes outside site-packages/, so this pull request waits for the user:\n'
+            printf '  %s\n' "$outside"
+            echo "plugins-only=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          gh api "repos/$REPOSITORY/contents/site-packages/composer.lock?ref=$HEAD_SHA" \
+            -H "Accept: application/vnd.github.raw" > "$RUNNER_TEMP/head.lock"
+          problems="$(PROJECT_DIR="$PWD" bash -c 'source vendor/dts/site-tools/tools/site-packages.sh && site_packages_not_plugins_only site-packages/composer.lock "$1"' _ "$RUNNER_TEMP/head.lock")"
+          if [ -n "$problems" ]; then
+            printf 'Not only WordPress.org plugins changed, so this pull request waits for the user:\n'
+            printf '  %s\n' "$problems"
+            echo "plugins-only=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "plugins-only=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Switch on auto-merge (by rebase, once the required checks pass)
+        if: steps.scope.outputs.plugins-only == 'true'
+        run: gh pr merge --auto --rebase "$PR_URL"

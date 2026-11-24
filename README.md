@@ -23,6 +23,20 @@ site's own `bin/` (both `vendor/` and `bin/` ignored by the site's git):
 }
 ```
 
+After a fresh clone, and after each change to `composer.lock`, the site installs the tools with
+Composer in its pinned container (the same command the shared workflows run):
+
+```sh
+mkdir -p vendor bin && docker run --rm -w /app -v "$PWD/composer.json:/app/composer.json:ro" -v "$PWD/composer.lock:/app/composer.lock:ro" -v "$PWD/vendor:/app/vendor" -v "$PWD/bin:/app/bin" composer:2.11.1 composer install --no-interaction --no-progress
+```
+
+The site's GitHub workflows (`check.yml`, `versions.yml`, `plugin-updates.yml`) are a few lines
+each, calling the shared ones in `.github/workflows/site-*.yml` pinned by commit. `bin/tools-pin`
+writes them from `tools/site-workflows/` for the release `composer.lock` installs; `bin/check`
+fails when they differ from what it writes. After a tools update (Dependabot raises the Composer
+pin, never the workflows' commit), `bin/tools-pin` is run on the update's branch and its three
+files committed there. The required checks are the `check` workflow's two jobs.
+
 The site describes itself in `site.json` (each field explained in
 [`tools/site-settings.md`](tools/site-settings.md)). What each command does:
 [`docs/TOOLS.md`](docs/TOOLS.md). The commands need Docker and `jq`; `bin/deploy` also needs
