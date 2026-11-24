@@ -59,6 +59,9 @@ readonly SITE_SETTINGS_BAD_EXPLANATIONS=(
 # The same for bin/dev-site's own refusals (tests/tools/dev-site/), which run before it changes
 # anything: each broken example must be refused naming what it breaks, each good one accepted.
 readonly DEV_SITE_EXAMPLES_DIR="$TOOLS_DIR/tests/tools/dev-site"
+# The commands only the tools repository uses, never installed into a site: bin/tools-update
+# updates the tools' own lock files, while a site gets tools updates through Dependabot (T18).
+readonly TOOLS_ONLY_COMMANDS=(tools-update)
 
 # The tools' PHP checkers: the installed checkers, their settings for the tools' own PHP
 # (tools/php-check/) and the must-use plugins they check, all read-only.
@@ -81,6 +84,21 @@ scripts_can_be_run() {
     missing=1
   done
   return "$missing"
+}
+
+# Composer copies into a site's bin/ only the commands composer.json lists under "bin", so a
+# command left out exists here and is missing in every site (bin/tools-pin was, until template
+# plan 2.1d). Every script in bin/ is listed, apart from the tools repository's own commands, and
+# every listed command exists.
+commands_listed_for_composer() {
+  local differences
+  differences="$(diff <(find "$TOOLS_DIR/bin" -maxdepth 1 -type f -printf 'bin/%f\n' |
+    grep -vxF -f <(printf 'bin/%s\n' "${TOOLS_ONLY_COMMANDS[@]}") | sort) \
+    <(jq -r '.bin[]' "$TOOLS_DIR/composer.json" | sort))"
+  [[ -z "$differences" ]] && return 0
+  log "bin/ and composer.json's \"bin\" disagree (< only in bin/, > only in composer.json):"
+  printf '%s\n' "$differences" | grep '^[<>]' | sed 's/^/    /' >&2
+  return 1
 }
 
 # Every field is explained in tools/site-settings.md, and nothing else is.
@@ -305,6 +323,7 @@ run_rule_checks() {
   run_check "Static analysis (the dev site's must-use plugins)" in_tools_php_check \
     php "$PHPSTAN_ENTRY" analyse -c tools/php-check/phpstan.neon.dist --no-progress --memory-limit=1G
   run_check "Every script in bin/ can be run" scripts_can_be_run
+  run_check "Every site command is installed by Composer (composer.json's bin)" commands_listed_for_composer
   run_check "site.json's fields are explained" site_json_fields_explained
   run_check "The site.json checks refuse bad examples" site_json_checks_refuse_bad_examples
   run_check "bin/dev-site's refusals refuse bad examples" dev_site_refusals_refuse_bad_examples

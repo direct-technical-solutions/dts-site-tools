@@ -35,7 +35,8 @@ TOOLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$TOOLS_DIR/tools/paths.sh"
 source "$TOOLS_DIR/tools/site-settings.sh"
 printf '%s\n' "PROJECT_DIR=$PROJECT_DIR" "SITE_DIR=$SITE_DIR" \
-  "MU_PLUGINS_MOUNT=$(compose_mount_source "$TOOLS_DIR/config/dev-mu-plugins")"
+  "MU_PLUGINS_MOUNT=$(compose_mount_source "$TOOLS_DIR/config/dev-mu-plugins")" \
+  "COMPOSE_FILES=$(dev_compose_files)"
 EOF
   [[ "$layout" == with-site-settings ]] && printf '{}\n' >"$folder/site.json"
   return 0
@@ -82,12 +83,14 @@ examples_with_tools_apart() {
   expect_folders "the site found through Composer's bin folder, the tools mounted by their full path" \
     "PROJECT_DIR=$WORK/site
 SITE_DIR=$WORK/site
-MU_PLUGINS_MOUNT=$apart/config/dev-mu-plugins" || failed=1
+MU_PLUGINS_MOUNT=$apart/config/dev-mu-plugins
+COMPOSE_FILES=$apart/compose.dev.yaml:./compose.site.yaml" || failed=1
   run_probe "$apart" COMPOSER_RUNTIME_BIN_DIR="$WORK/site/bin" SITE_DIR=starter
   expect_folders "a relative SITE_DIR read from the site, not from the current folder" \
     "PROJECT_DIR=$WORK/site
 SITE_DIR=$WORK/site/starter
-MU_PLUGINS_MOUNT=$apart/config/dev-mu-plugins" || failed=1
+MU_PLUGINS_MOUNT=$apart/config/dev-mu-plugins
+COMPOSE_FILES=$apart/compose.dev.yaml:./compose.site.yaml" || failed=1
   run_probe "$apart"
   expect_refusal_naming "refused without Composer's bin folder" "$apart" || failed=1
   run_probe "$apart" COMPOSER_RUNTIME_BIN_DIR="$WORK/no-such-folder"
@@ -102,7 +105,8 @@ example_with_tools_in_site() {
   expect_folders "the tools' own folder when it holds site.json, the mount relative to it" \
     "PROJECT_DIR=$together
 SITE_DIR=$together
-MU_PLUGINS_MOUNT=./config/dev-mu-plugins"
+MU_PLUGINS_MOUNT=./config/dev-mu-plugins
+COMPOSE_FILES=./compose.dev.yaml:./compose.site.yaml"
 }
 
 main() {

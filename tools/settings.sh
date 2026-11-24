@@ -5,15 +5,18 @@
 #
 # The sourcing script defines TOOLS_DIR (tools/paths.sh), ENV_FILE, REQUIRED_SETTINGS (an array), log and fail, and
 # DEV_DATABASE_VOLUME, the dev site's database volume (load_site_volume_names in
-# tools/site-settings.sh). The dev site's database keeps the passwords it was first started
+# tools/site-settings.sh, which also brings dev_compose_files). The dev site's database keeps the passwords it was first started
 # with, so a new .env is refused while that database exists.
 
 random_secret() { od -An -N24 -tx1 /dev/urandom | tr -d ' \n'; }
 
-# Prints a line of .env.example as it goes into .env: "generate" becomes a random secret.
+# Prints a line of .env.example as it goes into .env: "generate" becomes a random secret, and
+# "dev-compose-files" the recipe files' places for this site (dev_compose_files), which differ
+# between a site installing the tools and the tools' own repository.
 expand_setting_line() {
   local line="$1"
   [[ "$line" == *=generate ]] && line="${line%=generate}=$(random_secret)"
+  [[ "$line" == *=dev-compose-files ]] && line="${line%=dev-compose-files}=$(dev_compose_files)"
   printf '%s\n' "$line"
 }
 
@@ -28,7 +31,7 @@ create_env_file() {
   local volumes
   volumes="$(existing_database_volumes)"
   if [[ -n "$volumes" ]]; then
-    fail "there is no .env, but these databases still have the passwords of an earlier one: ${volumes}. Restore that .env, or remove the site (docker compose -f compose.dev.yaml down -v), then run again."
+    fail "there is no .env, but these databases still have the passwords of an earlier one: ${volumes}. Restore that .env, or remove the site (docker compose -p ${DEV_DATABASE_VOLUME%_db_data} down -v), then run again."
   fi
   log "Creating .env from .env.example with new random secrets"
   local line

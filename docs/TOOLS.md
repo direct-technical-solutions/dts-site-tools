@@ -100,7 +100,9 @@ the other site's `SITE_DIR`. `bin/check` always checks this repository; `bin/dep
   site, and `compose.site.yaml`, the site's own name and mounts (its theme, its own plugins and
   the tools' dev-only must-use plugins, by their place on this computer), written from `site.json` by
   `bin/dev-site`, `bin/check` and `bin/screenshots` (ignored by git; never edited). `.env`'s
-  `COMPOSE_FILE` names both, so the commands below, typed in the repository's folder, use them.
+  `COMPOSE_FILE` names both, so the commands below, typed in the repository's folder, use them;
+  `bin/dev-site` writes it when it creates `.env`, with the shared file where the tools are
+  (`vendor/dts/site-tools/compose.dev.yaml` in a site).
   After changing `site.json`, run `bin/dev-site` before typing them, so the written file follows.
 - `docker compose stop` / `start`: stop and start without losing anything.
 - `docker compose run --rm cli wp <command>`: WP-CLI against the dev site.
