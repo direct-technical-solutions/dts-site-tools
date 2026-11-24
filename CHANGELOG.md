@@ -19,6 +19,16 @@ change how a site calls the tools.
   `bin/tools-pin` writes. A site switching to this release runs `bin/tools-pin` and commits its
   three files; the required checks' names on GitHub change with them.
 - The install command for a fresh clone, in the README.
+- The self-check: every command in `bin/` is one Composer installs into a site (`composer.json`'s
+  `bin`), apart from the tools repository's own `bin/tools-update`.
+
+### Fixed
+
+- `bin/tools-pin` is installed into a site's `bin/` (it was missing from `composer.json`'s `bin`).
+- A new `.env` names the dev site's shared Compose file where the tools are installed
+  (`vendor/dts/site-tools/compose.dev.yaml` in a site), so hand-typed `docker compose` commands
+  find it. An existing `.env` keeps its line: a site switching to this release changes its
+  `COMPOSE_FILE` by hand.
 
 ## [0.1.0] - 2026-11-24
 

@@ -22,6 +22,7 @@
         "bin/screenshots",
         "bin/site-check",
         "bin/test",
+        "bin/tools-pin",
         "bin/versions-check"
     ],
     "config": {
