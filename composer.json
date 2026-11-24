@@ -9,7 +9,7 @@
         "php-stubs/wordpress-stubs": "7.1.2",
         "phpcsstandards/phpcsextra": "1.5.1",
         "phpcsstandards/phpcsutils": "1.2.3",
-        "phpstan/phpstan": "2.3.5",
+        "phpstan/phpstan": "2.3.6",
         "squizlabs/php_codesniffer": "3.13.6",
         "szepeviktor/phpstan-wordpress": "2.0.4",
         "wp-coding-standards/wpcs": "3.4.1"
