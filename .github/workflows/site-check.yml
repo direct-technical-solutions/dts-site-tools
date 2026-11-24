@@ -1,0 +1,87 @@
+# A site's checks, called by the site's own check.yml (written by bin/tools-pin from
+# tools/site-workflows/check.yml, pinned to this repository's commit; template plan T17, T18): every
+# static check (bin/check), and the dev site built from the site's repository alone and tested
+# (bin/dev-site, bin/test). The two jobs are the site's required checks.
+#
+# A called workflow runs as the site and checks out the site's commit, never this repository's,
+# and does not know its own commit (findings of template plan 2.1b-1). So each job first installs
+# the tools the site's composer.lock records, with Composer in its pinned container: the same
+# command a fresh clone of the site runs (README.md); the self-check holds every copy of it to
+# tools/versions.sh's Composer image. The two pins, this workflow's commit and the lock's, are kept
+# equal by bin/check (the site's workflows must be what bin/tools-pin writes).
+name: site-check
+
+on:
+  workflow_call:
+
+# Read-only access to the site's repository is all the checks need; the caller grants no more.
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      # Pinned by commit, not by tag: a tag can be moved to different code, a commit cannot.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The checks never push; the token is not kept on the runner.
+          persist-credentials: false
+
+      # The tools arrive as GitHub's zip of their release, which GitHub limits for downloads
+      # without a login; the run's own read-only token, given to Composer for this step only,
+      # lifts that limit. Composer writes the commands into the site's bin/ (its bin-dir).
+      - name: Install the tools (composer.lock)
+        env:
+          COMPOSER_AUTH: '{"github-oauth": {"github.com": "${{ github.token }}"}}'
+        run: >-
+          mkdir -p vendor bin &&
+          docker run --rm -w /app -e COMPOSER_AUTH
+          -v "$PWD/composer.json:/app/composer.json:ro" -v "$PWD/composer.lock:/app/composer.lock:ro"
+          -v "$PWD/vendor:/app/vendor" -v "$PWD/bin:/app/bin"
+          composer:2.11.1 composer install --no-interaction --no-progress
+
+      - name: Static checks (bin/check)
+        run: bin/check
+
+  dev-site:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      # The same pinned checkout as above, the token again not kept.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The same install as above, for the same reasons.
+      - name: Install the tools (composer.lock)
+        env:
+          COMPOSER_AUTH: '{"github-oauth": {"github.com": "${{ github.token }}"}}'
+        run: >-
+          mkdir -p vendor bin &&
+          docker run --rm -w /app -e COMPOSER_AUTH
+          -v "$PWD/composer.json:/app/composer.json:ro" -v "$PWD/composer.lock:/app/composer.lock:ro"
+          -v "$PWD/vendor:/app/vendor" -v "$PWD/bin:/app/bin"
+          composer:2.11.1 composer install --no-interaction --no-progress
+
+      # No backup and no secrets needed: bin/dev-site creates a fresh .env with new random
+      # secrets on this machine, which never leaves it.
+      - name: Build the dev site (bin/dev-site)
+        run: bin/dev-site
+
+      - name: Test the dev site (bin/test)
+        run: bin/test
+
+      # Playwright keeps a trace of each failed browser test (what the browser saw, step by step);
+      # kept for a week so a failure can be understood. The browser tests are the tools', so their
+      # results are in the installed tools' folder. The traces hold only the dev site's test pages,
+      # never .env.
+      - name: Keep the traces of failed browser tests
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-traces
+          path: vendor/dts/site-tools/tests/e2e/test-results/
+          retention-days: 7
+          if-no-files-found: ignore

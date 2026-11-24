@@ -263,6 +263,17 @@ the other site's `SITE_DIR`. `bin/check` always checks this repository; `bin/dep
   `tools/js-check/package-lock.json` (npm only from releases
   at least 7 days old, install scripts off); then `bin/check`, review the lock files' diff,
   commit.
+- `bin/tools-pin` (template plan 2.1c, T22): writes the site's `.github/workflows/check.yml`,
+  `versions.yml` and `plugin-updates.yml` from `tools/site-workflows/`, each calling a shared
+  workflow (`.github/workflows/site-*.yml` here) pinned to the commit of the tools release the
+  site's `composer.lock` installs; it refuses a lock file without the tools, with a short commit
+  or an unusable version, and writes nothing then. Run when a site starts using the tools and on
+  the branch of each tools update, since Dependabot raises only the Composer pin. In such a site
+  `bin/check` fails when the three files differ from what it writes (a commit left behind, a hand
+  edit, a file missing); the site's other workflows are left alone. The shared workflows install
+  the tools first with the README's install command, Composer given the run's read-only token;
+  the self-check holds every copy of that command to `tools/versions.sh`'s Composer image and runs
+  actionlint on the shared workflows and on the callers as written.
 - `tools/versions.sh`: the one place for the images and downloads these scripts use (the parent
   theme with its SHA-256); the self-check fails if the Playwright image and `@playwright/test`
   differ. npm installs run with `--ignore-scripts`. `tools/settings.sh`: the `.env` handling of

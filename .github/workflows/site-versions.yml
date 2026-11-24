@@ -1,0 +1,49 @@
+# A site's weekly versions check, called by the site's own versions.yml (written by bin/tools-pin
+# from tools/site-workflows/versions.yml; template plan T17, T18): compares the dev site's pinned
+# parent theme with WordPress.org and watches Dependabot's plugin updates (bin/versions-check,
+# plan 8j, template plan T9), opening an issue for what needs the user. It changes no code.
+# The tools are installed first, as in site-check.yml, for the same reasons.
+name: site-versions
+
+on:
+  workflow_call:
+    inputs:
+      cooldown-days:
+        description: "Days a release must be out before it is proposed"
+        type: string
+        required: false
+        default: "7"
+
+# Exactly what the check needs: reading the repository and its pull requests, and opening issues.
+# The caller grants the same; a called workflow can never get more than its caller gives.
+permissions:
+  contents: read
+  pull-requests: read
+  issues: write
+
+jobs:
+  versions:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      # Pinned by commit, like site-check.yml. Nothing is pushed, so the token is not kept.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # As in site-check.yml: the run's read-only token for Composer's download of the tools.
+      - name: Install the tools (composer.lock)
+        env:
+          COMPOSER_AUTH: '{"github-oauth": {"github.com": "${{ github.token }}"}}'
+        run: >-
+          mkdir -p vendor bin &&
+          docker run --rm -w /app -e COMPOSER_AUTH
+          -v "$PWD/composer.json:/app/composer.json:ro" -v "$PWD/composer.lock:/app/composer.lock:ro"
+          -v "$PWD/vendor:/app/vendor" -v "$PWD/bin:/app/bin"
+          composer:2.11.1 composer install --no-interaction --no-progress
+
+      - name: Compare the theme with WordPress.org, watch the plugin updates and the test server's Alpine packages; open issues for what needs the user (bin/versions-check --act)
+        run: bin/versions-check --act
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PINS_COOLDOWN_DAYS: ${{ inputs.cooldown-days }}

@@ -4,8 +4,9 @@
 # site's downloaded plugins, the WordPress Coding Standards (PHPCS), static analysis (PHPStan), the
 # CSS (Stylelint, D29), the theme's scripts, the browser tests' types, ShellCheck on the site's own
 # scripts, the workflows, the compose file, site.json (T7), the routines and the status sheet; then
-# the site's own checks (tests/checks/*.sh), and, while the tools are the site's own, the tools'
-# self-check (tests/tools/check-tools.sh). The tools run in pinned containers; only Docker and jq
+# the site's own checks (tests/checks/*.sh); and either, while the tools are the site's own, the
+# tools' self-check (tests/tools/check-tools.sh), or, once the site installs them through Composer,
+# that its workflows call the installed release (bin/tools-pin). The tools run in pinned containers; only Docker and jq
 # are needed on the host (jq reads the npm audits' reports and site.json). Every check runs even
 # after a failure, so one run shows everything; the exit status is 1 if any check failed.
 set -Euo pipefail
@@ -30,6 +31,8 @@ source "$TOOLS_DIR/tools/site-packages.sh"
 source "$TOOLS_DIR/tools/routines.sh"
 # shellcheck source=tools/status-sheet.sh
 source "$TOOLS_DIR/tools/status-sheet.sh"
+# shellcheck source=tools/tools-pin.sh
+source "$TOOLS_DIR/tools/tools-pin.sh"
 
 # A site's own checks (template plan T20): each file is loaded in name order after the checks
 # below and calls run_check for each of its checks.
@@ -339,6 +342,27 @@ run_tools_self_check_when_own() {
   run_check "The tools' self-check (tests/tools/check-tools.sh)" bash "$TOOLS_DIR/tests/tools/check-tools.sh"
 }
 
+# The site's workflows call the tools release composer.lock installs (template plan T18, T22):
+# each caller is exactly what bin/tools-pin writes, so the workflows' commit and Composer's pin
+# cannot drift apart, and a hand edit is caught too. Fails on Dependabot's tools update until
+# bin/tools-pin has run on its branch.
+workflows_call_installed_tools() {
+  local release differences
+  release="$(tools_pin_locked_release "$PROJECT_DIR/composer.lock")" || return 1
+  differences="$(tools_pin_differences "$PROJECT_DIR/.github/workflows" "${release%% *}" "${release#* }")"
+  [[ -z "$differences" ]] && return 0
+  log "the workflows do not call the installed tools; run bin/tools-pin and commit what it writes:"
+  printf '%s\n' "$differences" | sed 's/^/    /' >&2
+  return 1
+}
+
+# Only for a site that installs the tools; while they are the site's own, the site's workflows run
+# its own copy and there is no release to call.
+run_tools_pin_check_when_installed() {
+  [[ "$TOOLS_DIR" != "$PROJECT_DIR" ]] || return 0
+  run_check "The workflows call the installed tools (bin/tools-pin)" workflows_call_installed_tools
+}
+
 main() {
   require_lock_file
   require_jq
@@ -349,6 +373,7 @@ main() {
   run_analysis_and_file_checks
   run_site_own_checks
   run_tools_self_check_when_own
+  run_tools_pin_check_when_installed
   report
 }
 

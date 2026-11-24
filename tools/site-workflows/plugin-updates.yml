@@ -1,0 +1,29 @@
+# Written by dts-site-tools' bin/tools-pin from its tools/site-workflows/plugin-updates.yml;
+# bin/check fails when this file differs from what bin/tools-pin writes, so it is changed in the
+# tools, never here.
+#
+# Lets Dependabot's weekly plugin update merge itself once its checks pass, through the tools'
+# shared rule (site-plugin-updates.yml), pinned to the commit of the tools release composer.lock
+# installs: only WordPress.org plugins in site-packages/ may merge themselves; anything else,
+# the tools' own releases included, waits for the user's review.
+name: plugin-updates
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+# Nothing by default; the one job gets what switching on auto-merge needs.
+permissions: {}
+
+concurrency:
+  group: plugin-updates-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  auto-merge:
+    # The called workflow acts only on Dependabot's pull requests into main, and skips the rest.
+    permissions:
+      contents: write
+      pull-requests: write
+    # Pinned by commit, not by tag: a tag can be moved to different code, a commit cannot.
+    uses: direct-technical-solutions/dts-site-tools/.github/workflows/site-plugin-updates.yml@__TOOLS_COMMIT__ # __TOOLS_VERSION__

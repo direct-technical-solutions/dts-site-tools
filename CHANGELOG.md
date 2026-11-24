@@ -8,6 +8,18 @@ change how a site calls the tools.
 
 ## [Unreleased]
 
+### Added
+
+- The shared workflows a site calls, pinned by commit: `site-check.yml` (the `check` and
+  `dev-site` jobs), `site-versions.yml` and `site-plugin-updates.yml`. Each installs the tools
+  from the site's `composer.lock` first, giving Composer the run's read-only token.
+- `bin/tools-pin`: writes the site's `check.yml`, `versions.yml` and `plugin-updates.yml` workflows
+  from `tools/site-workflows/`, pinned to the commit of the tools release `composer.lock` installs.
+- `bin/check`, in a site that installs the tools: the site's three workflows must be exactly what
+  `bin/tools-pin` writes. A site switching to this release runs `bin/tools-pin` and commits its
+  three files; the required checks' names on GitHub change with them.
+- The install command for a fresh clone, in the README.
+
 ## [0.1.0] - 2026-11-24
 
 ### Added

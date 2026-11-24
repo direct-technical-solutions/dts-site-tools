@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# Writes the site's workflows that call the tools' shared workflows (.github/workflows/check.yml,
+# versions.yml and plugin-updates.yml) from the tools' templates (tools/site-workflows/), pinned
+# to the commit of the tools release the site's composer.lock installs (template plan T18, T22).
+#
+#   bin/tools-pin
+#
+# Run once when a site starts using the tools, and after each tools update: Dependabot raises the
+# tools in composer.json and composer.lock but never the workflows' commit, so its pull request
+# fails bin/check until this has run on its branch and the three files are committed there. It
+# changes only those three files; the site's other workflows are left alone. git's diff shows what
+# changed.
+#
+# Needs bash and jq. Exit status: 0 written; 1 nothing written (the lock file names no usable
+# tools release, or the command was given wrongly).
+set -Euo pipefail
+
+TOOLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+readonly TOOLS_DIR
+# shellcheck source=tools/paths.sh
+source "$TOOLS_DIR/tools/paths.sh"
+# shellcheck source=tools/tools-pin.sh
+source "$TOOLS_DIR/tools/tools-pin.sh"
+
+log() { printf '%s [tools-pin] %s\n' "$(date +%H:%M:%S)" "$*" >&2; }
+
+main() {
+  local release commit version
+  [[ $# -eq 0 ]] || { log "takes no arguments; it reads $TOOLS_PACKAGE_NAME's release from composer.lock"; exit 1; }
+  command -v jq >/dev/null || { log "jq is needed to read composer.lock"; exit 1; }
+  release="$(tools_pin_locked_release "$PROJECT_DIR/composer.lock")" || exit 1
+  commit="${release%% *}"
+  version="${release#* }"
+  tools_pin_write "$PROJECT_DIR/.github/workflows" "$commit" "$version"
+  log "the site's workflows now call $TOOLS_PACKAGE_NAME $version (${commit:0:7})"
+}
+
+main "$@"
