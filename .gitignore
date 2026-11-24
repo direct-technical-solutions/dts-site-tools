@@ -1,0 +1,36 @@
+# Allow-list: ignore everything, then allow back only what this repository versions, so a stray
+# file (a site's .env, an export, a dump) can never be staged by `git add -A`.
+/*
+!/.gitignore
+!/.github/
+!/bin/
+!/config/
+!/docs/
+!/tests/
+!/tools/
+!/compose.dev.yaml
+!/.env.example
+!/composer.json
+!/composer.lock
+!/LICENSE
+!/README.md
+!/CHANGELOG.md
+
+# Secrets, dumps and archives stay out even inside the allowed folders.
+*.sql
+*.sql.gz
+*.zip
+*.tar.gz
+*.log
+wp-config.php
+.env
+# The browser tests' saved dev-admin login (its session cookies), written by admin.setup.ts.
+tests/e2e/.auth/
+
+# Dependencies and build output are installed from lock files, never versioned.
+node_modules/
+vendor/
+
+# Playwright's run output (traces, screenshots of failures).
+test-results/
+playwright-report/

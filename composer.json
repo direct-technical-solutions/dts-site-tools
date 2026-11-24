@@ -1,0 +1,36 @@
+{
+    "name": "dts/site-tools",
+    "description": "The tools that check, test and deploy a DTS WordPress site: run on the developer's computer and in CI, never installed on the website.",
+    "type": "library",
+    "license": "GPL-2.0-or-later",
+    "homepage": "https://github.com/direct-technical-solutions/dts-site-tools",
+    "require": {
+        "dealerdirect/phpcodesniffer-composer-installer": "1.2.1",
+        "php-stubs/wordpress-stubs": "7.1.2",
+        "phpcsstandards/phpcsextra": "1.5.1",
+        "phpcsstandards/phpcsutils": "1.2.3",
+        "phpstan/phpstan": "2.3.5",
+        "squizlabs/php_codesniffer": "3.13.6",
+        "szepeviktor/phpstan-wordpress": "2.0.4",
+        "wp-coding-standards/wpcs": "3.4.1"
+    },
+    "bin": [
+        "bin/accessibility-scan",
+        "bin/check",
+        "bin/deploy",
+        "bin/dev-site",
+        "bin/screenshots",
+        "bin/site-check",
+        "bin/test",
+        "bin/versions-check"
+    ],
+    "config": {
+        "allow-plugins": {
+            "dealerdirect/phpcodesniffer-composer-installer": true
+        },
+        "platform": {
+            "php": "8.4.0"
+        },
+        "sort-packages": true
+    }
+}

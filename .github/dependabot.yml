@@ -1,0 +1,117 @@
+# Dependabot proposes updates of the tools' own pinned packages and actions as pull requests.
+# It never merges: each pull request runs the `check` workflow and waits for review (template T9).
+# Not covered, updated by hand: the container images in tools/versions.sh and compose.dev.yaml, and
+# Playwright, whose package must match its image (bin/tools-update; the self-check, tests/tools/check-tools.sh, compares them).
+version: 2
+
+updates:
+  # The actions, pinned by commit in .github/workflows/check.yml.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "05:00"
+      timezone: "America/New_York"
+    # Hijacked releases are usually found and pulled within days; waiting a week means a release
+    # is only proposed once it has survived that. Security updates are not held back by this.
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+
+  # The PHP checkers every site gets with the tools (composer.json, composer.lock), at exact
+  # versions; never deployed to a website.
+  - package-ecosystem: "composer"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "05:00"
+      timezone: "America/New_York"
+    cooldown:
+      default-days: 7
+    # One pull request for all the tools, so they are tried together as bin/check runs them.
+    groups:
+      code-quality-tools:
+        patterns:
+          - "*"
+    ignore:
+      # WPCS 3.x requires PHP_CodeSniffer 3.x.
+      - dependency-name: "squizlabs/php_codesniffer"
+        update-types: ["version-update:semver-major"]
+      # The stubs describe the WordPress version the site runs (7.1); they move with WordPress,
+      # deliberately, not on their own.
+      - dependency-name: "php-stubs/wordpress-stubs"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+    commit-message:
+      prefix: "build"
+      include: "scope"
+
+  # The browser tests' packages (tests/e2e/package.json and its lock file).
+  - package-ecosystem: "npm"
+    directory: "/tests/e2e"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "05:00"
+      timezone: "America/New_York"
+    cooldown:
+      default-days: 7
+    groups:
+      browser-test-tools:
+        patterns:
+          - "*"
+    ignore:
+      # Must equal the Playwright image in tools/versions.sh; both move together by hand.
+      - dependency-name: "@playwright/test"
+    commit-message:
+      prefix: "build"
+      include: "scope"
+
+  # The CSS linter (tools/css-lint/package.json and its lock file).
+  - package-ecosystem: "npm"
+    directory: "/tools/css-lint"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "05:00"
+      timezone: "America/New_York"
+    cooldown:
+      default-days: 7
+    # Stylelint, its standard configuration and the formatting plugin are released in step and
+    # must agree on Stylelint's major version, so they are tried together.
+    groups:
+      css-lint-tools:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "build"
+      include: "scope"
+
+  # The theme scripts' checker (tools/js-check/package.json and its lock file):
+  # ESLint, typescript-eslint, the layout plugin and the TypeScript typescript-eslint supports.
+  - package-ecosystem: "npm"
+    directory: "/tools/js-check"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "05:00"
+      timezone: "America/New_York"
+    cooldown:
+      default-days: 7
+    # ESLint and its plugins must agree on ESLint's major version, and typescript-eslint on
+    # TypeScript's, so they are tried together.
+    groups:
+      js-check-tools:
+        patterns:
+          - "*"
+    ignore:
+      # TypeScript is held to the versions typescript-eslint supports (its peer range, below 6.1
+      # in 8.73); raised by hand when typescript-eslint supports a newer one.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+    commit-message:
+      prefix: "build"
+      include: "scope"
