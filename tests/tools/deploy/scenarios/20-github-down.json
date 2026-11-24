@@ -1,7 +1,7 @@
 {
   "description": "GitHub not answering: refused.",
   "place": "staging",
-  "checks": { "{B}": [["check", "success"], ["dev-site", "success"]] },
+  "checks": { "{B}": [["check / check", "success"], ["check / dev-site", "success"]] },
   "githubDown": true,
   "expectStatus": 1
 }

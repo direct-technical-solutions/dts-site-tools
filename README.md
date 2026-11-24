@@ -35,7 +35,9 @@ each, calling the shared ones in `.github/workflows/site-*.yml` pinned by commit
 writes them from `tools/site-workflows/` for the release `composer.lock` installs; `bin/check`
 fails when they differ from what it writes. After a tools update (Dependabot raises the Composer
 pin, never the workflows' commit), `bin/tools-pin` is run on the update's branch and its three
-files committed there. The required checks are the `check` workflow's two jobs.
+files committed there. The required checks, in the site's branch protection and for `bin/deploy`,
+are the shared workflow's two jobs as GitHub names them when called: `check / check` and
+`check / dev-site`.
 
 The site describes itself in `site.json` (each field explained in
 [`tools/site-settings.md`](tools/site-settings.md)). What each command does:

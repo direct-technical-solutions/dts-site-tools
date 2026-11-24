@@ -1,7 +1,7 @@
 {
   "description": "A changed file in the working copy: refused, naming it.",
   "place": "staging",
-  "checks": { "{B}": [["check", "success"], ["dev-site", "success"]] },
+  "checks": { "{B}": [["check / check", "success"], ["check / dev-site", "success"]] },
   "workingCopy": "modified",
   "expectStatus": 1,
   "expectOutputNaming": ["change.txt"]

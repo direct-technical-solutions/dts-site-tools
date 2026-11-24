@@ -307,8 +307,11 @@ run_deploy() {
   if jq -e '.lockHeld // false' "$situation" >/dev/null; then
     exec {held_lock}>"$work/tmp/example-deploy.lock" && flock "$held_lock"
   fi
+  # The stand-in repository must be the site bin/deploy works on. COMPOSER_RUNTIME_BIN_DIR, set
+  # when a site's bin/test runs through Composer's proxy, and SITE_DIR would name the real site
+  # instead (tools/paths.sh reads them first); found when a site's CI first ran this test (2.1d).
   jq -r '.answer // "yes"' "$situation" |
-    env -u GH_TOKEN -u GITHUB_TOKEN PATH="$search_path" FAKE_SERVICES_DIR="$work/services" TMPDIR="$work/tmp" \
+    env -u GH_TOKEN -u GITHUB_TOKEN -u COMPOSER_RUNTIME_BIN_DIR -u SITE_DIR PATH="$search_path" FAKE_SERVICES_DIR="$work/services" TMPDIR="$work/tmp" \
       bash "$work/repo/bin/deploy" "$(jq -r '.place' "$situation")" "${options[@]}" >"$work/output.txt" 2>&1
   local status=$?
   [[ -z "${held_lock:-}" ]] || exec {held_lock}>&-

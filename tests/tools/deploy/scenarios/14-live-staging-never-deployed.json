@@ -1,7 +1,7 @@
 {
   "description": "live while staging has no note at all: refused.",
   "place": "live",
-  "checks": { "{B}": [["check", "success"], ["dev-site", "success"]] },
+  "checks": { "{B}": [["check / check", "success"], ["check / dev-site", "success"]] },
   "expectStatus": 1,
   "expectOutputNaming": ["staging"]
 }

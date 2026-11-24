@@ -2,7 +2,7 @@
   "description": "A commit only in the local repository, never pushed: refused, naming it.",
   "place": "staging",
   "options": ["--commit", "{C}"],
-  "checks": { "{C}": [["check", "success"], ["dev-site", "success"]] },
+  "checks": { "{C}": [["check / check", "success"], ["check / dev-site", "success"]] },
   "expectStatus": 1,
   "expectOutputNaming": ["{C7}"]
 }

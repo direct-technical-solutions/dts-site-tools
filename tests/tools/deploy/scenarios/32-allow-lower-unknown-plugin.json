@@ -2,7 +2,7 @@
   "description": "--allow-lower naming a plugin the commit does not download (a typo): refused, naming it.",
   "place": "staging",
   "options": ["--allow-lower", "example-downlaod"],
-  "checks": { "{B}": [["check", "success"], ["dev-site", "success"]] },
+  "checks": { "{B}": [["check / check", "success"], ["check / dev-site", "success"]] },
   "notes": { "example-staging": "{A}" },
   "expectStatus": 2,
   "expectOutputNaming": ["example-downlaod"],

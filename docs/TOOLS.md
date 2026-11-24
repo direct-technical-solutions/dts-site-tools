@@ -205,7 +205,8 @@ the other site's `SITE_DIR`. `bin/check` always checks this repository; `bin/dep
   (template plan 1.4, T11; handbook chapter 2), run by the user from this computer, the way every
   change reaches staging and live since 2026-11-22 (1.4e; `docs/ROUTINES.md`, "Deploying"). It
   refuses unless the working copy is clean, the commit is on GitHub's `main`
-  and its required checks (`check`, `dev-site`) passed on it or on its merged pull request's last
+  and its required checks (`check / check`, `check / dev-site`: the shared workflow's two jobs as
+  GitHub names them when the site's `check.yml` calls it) passed on it or on its merged pull request's last
   commit with the same files, and on live unless staging runs that commit; it reads the place's
   note on the server and shows the commits arriving or taken away. Before asking "yes", it exports
   the commit, builds its downloaded plugins from its `composer.lock` (the pinned Composer

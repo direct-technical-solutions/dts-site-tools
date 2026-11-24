@@ -1,7 +1,7 @@
 {
   "description": "The theme's copy failing after the plugins were copied: it stops, says the place may run a mix, and leaves the note naming the old commit.",
   "place": "staging",
-  "checks": { "{B}": [["check", "success"], ["dev-site", "success"]] },
+  "checks": { "{B}": [["check / check", "success"], ["check / dev-site", "success"]] },
   "notes": { "example-staging": "{A}" },
   "copyFailsAt": "example-child",
   "expectStatus": 1,
