@@ -2,7 +2,7 @@
   "description": "The same, with --allow-lower naming the plugin: it is lowered to the pin, and said so.",
   "place": "staging",
   "options": ["--allow-lower", "example-download"],
-  "checks": { "{B}": [["check", "success"], ["dev-site", "success"]] },
+  "checks": { "{B}": [["check / check", "success"], ["check / dev-site", "success"]] },
   "notes": { "example-staging": "{A}" },
   "serverPluginVersion": { "example-staging": "1.10.0" },
   "expectStatus": 0,

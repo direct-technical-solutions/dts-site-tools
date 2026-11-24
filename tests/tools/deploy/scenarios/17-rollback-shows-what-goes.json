@@ -8,11 +8,11 @@
   "checks": {
     "{A}": [
       [
-        "check",
+        "check / check",
         "success"
       ],
       [
-        "dev-site",
+        "check / dev-site",
         "success"
       ]
     ]

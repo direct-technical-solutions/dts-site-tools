@@ -1,7 +1,7 @@
 {
   "description": "A downloaded plugin's folder empty on the server: copied, and named as new there, to activate by hand.",
   "place": "staging",
-  "checks": { "{B}": [["check", "success"], ["dev-site", "success"]] },
+  "checks": { "{B}": [["check / check", "success"], ["check / dev-site", "success"]] },
   "notes": { "example-staging": "{A}" },
   "serverPluginVersion": { "example-staging": "" },
   "expectStatus": 0,

@@ -1,7 +1,7 @@
 {
   "description": "A file of WordPress.org's release missing from the build (Simple History's releases list notes their zip leaves out): shown, naming it, and the deploy goes on, since a missing file adds no one's code; WP-CLI's check on the dev site accepts it too (template plan 1.5b).",
   "place": "staging",
-  "checks": { "{B}": [["check", "success"], ["dev-site", "success"]] },
+  "checks": { "{B}": [["check / check", "success"], ["check / dev-site", "success"]] },
   "notes": { "example-staging": "{A}" },
   "tamperDownloaded": "removed",
   "expectStatus": 0,

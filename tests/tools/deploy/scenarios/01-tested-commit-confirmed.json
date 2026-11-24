@@ -1,7 +1,7 @@
 {
   "description": "main's tested commit, staging on the commit before: it shows the arriving commit, copies the downloaded plugin, the site's plugin and the theme in that order, removes what the commit does not have, and writes the note last.",
   "place": "staging",
-  "checks": { "{B}": [["check", "success"], ["dev-site", "success"]] },
+  "checks": { "{B}": [["check / check", "success"], ["check / dev-site", "success"]] },
   "notes": { "example-staging": "{A}" },
   "expectStatus": 0,
   "expectOutputNaming": ["{B7}", "B: a change", "every file matches"],

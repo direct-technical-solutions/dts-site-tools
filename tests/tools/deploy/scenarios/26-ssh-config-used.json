@@ -1,7 +1,7 @@
 {
   "description": "Another SSH settings file given: ssh is run with it, and never asks for a password.",
   "place": "staging",
-  "checks": { "{B}": [["check", "success"], ["dev-site", "success"]] },
+  "checks": { "{B}": [["check / check", "success"], ["check / dev-site", "success"]] },
   "notes": { "example-staging": "{A}" },
   "sshConfigFile": "ssh_config",
   "expectStatus": 0,

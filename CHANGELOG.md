@@ -18,6 +18,13 @@ change how a site calls the tools.
 - `bin/check`, in a site that installs the tools: the site's three workflows must be exactly what
   `bin/tools-pin` writes. A site switching to this release runs `bin/tools-pin` and commits its
   three files; the required checks' names on GitHub change with them.
+
+### Changed
+
+- `bin/deploy` requires the checks `check / check` and `check / dev-site`, the names GitHub gives
+  the shared workflow's jobs when a site calls it (it required `check` and `dev-site`). A site
+  switching to this release sets its branch protection to the new names; a commit tested only
+  under the old names is refused until its checks run again.
 - The install command for a fresh clone, in the README.
 - The self-check: every command in `bin/` is one Composer installs into a site (`composer.json`'s
   `bin`), apart from the tools repository's own `bin/tools-update`.
@@ -25,6 +32,9 @@ change how a site calls the tools.
 ### Fixed
 
 - `bin/tools-pin` is installed into a site's `bin/` (it was missing from `composer.json`'s `bin`).
+- The deploy tests work on their own stand-in site even when run from a site's `bin/test`: they
+  cleared GitHub's tokens but not `COMPOSER_RUNTIME_BIN_DIR` or `SITE_DIR`, so `bin/deploy` worked
+  on the real site and refused its commit.
 - A new `.env` names the dev site's shared Compose file where the tools are installed
   (`vendor/dts/site-tools/compose.dev.yaml` in a site), so hand-typed `docker compose` commands
   find it. An existing `.env` keeps its line: a site switching to this release changes its

@@ -1,7 +1,7 @@
 {
   "description": "A page failing after the copy: the deploy fails, the note names the new commit (the code is there), and the way back names the commit before.",
   "place": "staging",
-  "checks": { "{B}": [["check", "success"], ["dev-site", "success"]] },
+  "checks": { "{B}": [["check / check", "success"], ["check / dev-site", "success"]] },
   "notes": { "example-staging": "{A}" },
   "pageCheckFails": true,
   "expectStatus": 1,
