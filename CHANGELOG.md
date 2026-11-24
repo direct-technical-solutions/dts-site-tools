@@ -8,6 +8,8 @@ change how a site calls the tools.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-24
+
 ### Added
 
 - The shared workflows a site calls, pinned by commit: `site-check.yml` (the `check` and
@@ -55,5 +57,6 @@ change how a site calls the tools.
   PHPCSUtils 1.2.3, PHPCSExtra 1.5.1, PHPStan 2.3.5, PHPStan for WordPress 2.0.4 and the
   WordPress stubs 7.1.2.
 
-[Unreleased]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/direct-technical-solutions/dts-site-tools/releases/tag/v0.1.0
