@@ -214,9 +214,20 @@ the other site's `SITE_DIR`. `bin/check` always checks this repository; `bin/dep
   file refuses; one listed but missing from the download is shown, not refused, as WP-CLI's
   check on the dev site does, 1.5b), checks each folder
   exists on the server for the key, and refuses to lower a downloaded plugin the host updated
-  unless `--allow-lower` names it. After "yes" it copies the downloaded plugins, the site's own
-  plugins and the theme, each folder made exactly the commit's, then writes the note, and names
-  any folder that was empty there (to activate by hand). Then the page check
+  unless `--allow-lower` names it. What it shows comes straight from git and rsync as they print
+  it (template plan T23, 2.1e): before "yes", what git says changed in the site's own code
+  (`git diff --name-only --no-renames` between the note's commit and the new one, over the theme
+  and the site's plugins, the command in its heading, `none` when empty, or why there is nothing
+  to compare with), and what rsync will change on the server (a `--dry-run` of exactly the copy
+  that follows, folder by folder, the downloaded plugins included); when the two disagree about
+  the site's own code, one line says so (a change on the server outside a deploy, which only
+  rsync sees). The copy compares by content and does not copy file times, so a file with the same
+  content is neither listed nor touched; a change to a file's mode alone is not copied, and git
+  listing one makes the two disagree. After "yes" it copies the downloaded plugins, the site's own
+  plugins and the theme, each folder made exactly the commit's, showing rsync's own list and
+  whether it matches the preview; then a second dry run of every folder must list nothing, or it
+  stops without writing the note; then it writes the note, and names any folder that was empty
+  there (to activate by hand). Then the page check
   (`bin/site-check`; failing, it fails the deploy and names the way back, `--commit` with the
   commit the place ran before), given a place's password login from `.env`
   (`<PLACE>_CHECK_USER`, `<PLACE>_CHECK_PASSWORD`, read by exact name), and the PHP log's lines

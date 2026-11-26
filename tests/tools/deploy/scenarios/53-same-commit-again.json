@@ -1,0 +1,11 @@
+{
+  "description": "The commit the server already runs and holds, copied again: git and rsync both answer none for every folder.",
+  "place": "staging",
+  "checks": { "{B}": [["check / check", "success"], ["check / dev-site", "success"]] },
+  "notes": { "example-staging": "{B}" },
+  "serverHolds": "{B}",
+  "serverPluginVersion": { "example-staging": "1.1.0" },
+  "expectStatus": 0,
+  "expectOutputNaming": ["already runs", "themes/example-child): none", "example-download: none", "example-plugin: none", "example-child: none", "the copy matches the preview"],
+  "expectOutputLacking": ["disagree"]
+}

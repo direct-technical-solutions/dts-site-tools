@@ -26,7 +26,10 @@
 # for the situation's folder); serverPluginVersion ({short name: version} of example-download
 # there, "" for an empty folder); missingFolders (["<short name>/<folder>"]); tamperDownloaded;
 # buildFails; checksumsUnavailable; copyFailsAt (a folder whose copy fails); interruptAt (a folder
-# during whose copy bin/deploy is interrupted);
+# during whose copy bin/deploy is interrupted); plantBeforeCopy, plantAfterCopy (a folder into
+# which a file appears on the server just before or after its real copy); serverHolds (a commit,
+# "{A}": the site's own folders on both servers hold exactly its files, dated long ago);
+# serverExtraFiles ({"<short name>/<folder>/<file>": text}, put there by hand);
 # phpLogExtraFile; noPageCheckLogin; lockHeld (another deploy holding the lock); pageCheckFails,
 # pageCheckAddsLogLines, logStartsAnew (played by the stand-in page check);
 # expectStatus; expectOutputNaming; expectOutputLacking; expectPageCheck ("<address>\tuser=<user>\t
@@ -148,11 +151,36 @@ write_server_folders() {
     for folder in example-plugin example-child; do
       [[ -d "$server/$ssh_host/$folder" ]] && printf 'old\n' >"$server/$ssh_host/$folder/old.txt"
     done
+    hold_commit_files "$work" "$server/$ssh_host" || return 1
     write_server_log "$server/$ssh_host/php-log" "$situation"
     version="$(jq -r --arg host "$ssh_host" '.serverPluginVersion[$host] // "1.0.0"' "$situation")"
     [[ -z "$version" || ! -d "$server/$ssh_host/$DOWNLOADED_PLUGIN" ]] ||
       write_plugin_files "$server/$ssh_host/$DOWNLOADED_PLUGIN" "$DOWNLOADED_PLUGIN" "$version"
   done
+}
+
+# serverHolds: the site's own folders on a stand-in server hold exactly that commit's files, as
+# after a finished deploy of it, dated long ago so only their content can match.
+readonly LONG_AGO="2020-01-01 00:00:00"
+hold_commit_files() {
+  local work="$1" host_dir="$2" commit repository_path folder
+  commit="$(jq -r '.serverHolds // empty' "$work/situation.json")"
+  [[ -n "$commit" ]] || return 0
+  for repository_path in plugins/example-plugin themes/example-child; do
+    folder="$host_dir/${repository_path#*/}"
+    [[ -d "$folder" ]] || continue
+    find "$folder" -mindepth 1 -delete
+    git -C "$work/repo" archive "$commit" "$repository_path" | tar -x --strip-components=2 -C "$folder" || return 1
+    find "$folder" -mindepth 1 -exec touch -d "$LONG_AGO" {} +
+  done
+}
+
+# serverExtraFiles: files put on a stand-in server by hand, outside any deploy.
+write_server_extra_files() {
+  local work="$1" file text
+  while IFS=$'\t' read -r file text; do
+    printf '%s\n' "$text" >"$work/services/server/$file"
+  done < <(jq -r '.serverExtraFiles // {} | to_entries[] | "\(.key)\t\(.value)"' "$work/situation.json")
 }
 
 # The site's PHP log with one old line, alone in its folder unless the situation adds another
@@ -224,7 +252,8 @@ write_servers() {
   local work="$1" ssh_host note
   local situation="$work/situation.json"
   cp "$situation" "$work/services/situation.json"
-  write_server_folders "$work"
+  write_server_folders "$work" || return 1
+  write_server_extra_files "$work"
   write_checksums "$work"
   while IFS=$'\t' read -r ssh_host note; do
     mkdir -p "$work/services/server/$ssh_host/deploy-note"
