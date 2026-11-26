@@ -260,10 +260,21 @@ install_site_packages() {
   done
 }
 
+# The plugin's folder is deleted before the copy: the dev site's files volume outlives builds, and
+# a plugin once in localPlugins leaves its mount point there as an empty folder, which
+# `plugin delete --all` does not see as a plugin. docker cp into an existing folder copies one
+# level too deep (song-list/song-list/), so WordPress would not find the plugin. Deleting first
+# also means the folder holds exactly the release. The slug is checked first, since an empty one
+# or a path would point the deletion at the plugins folder or outside it; rm gets the path as one
+# argument, with no shell in between.
 install_downloaded_plugin() {
   local plugin_slug="$1"
-  compose cp "$SITE_PACKAGES_PLUGINS_DIR/$plugin_slug" "wordpress:/var/www/html/wp-content/plugins/$plugin_slug"
-  compose exec -T wordpress chown -R www-data:www-data "/var/www/html/wp-content/plugins/$plugin_slug"
+  local plugin_dir="/var/www/html/wp-content/plugins/$plugin_slug"
+  [[ "$plugin_slug" =~ ^[a-z0-9][a-z0-9._-]*$ ]] ||
+    fail "a downloaded plugin's folder name is not a plain folder name: '$plugin_slug'"
+  compose exec -T wordpress rm -rf -- "$plugin_dir"
+  compose cp "$SITE_PACKAGES_PLUGINS_DIR/$plugin_slug" "wordpress:$plugin_dir"
+  compose exec -T wordpress chown -R www-data:www-data "$plugin_dir"
   wp_cli plugin activate "$plugin_slug"
 }
 

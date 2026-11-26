@@ -49,6 +49,12 @@ change how a site calls the tools.
   settings file); a site's own checks that called `shared_code_names_nothing_of_this_site` keep
   working.
 
+### Fixed
+
+- `bin/dev-site` replaces a downloaded plugin's folder before copying it: a dev site built before
+  a plugin moved from `localPlugins` to a download kept its empty mount point in the files
+  volume, and the copy landed one level too deep, so WordPress did not find the plugin.
+
 ## [0.3.1] - 2026-11-26
 
 ### Changed
