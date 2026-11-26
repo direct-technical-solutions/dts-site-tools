@@ -49,8 +49,8 @@ require_jq() {
 }
 
 # Composer's own steps for the PHP checkers' composer.json in the folder given: composer.json and
-# composer.lock read-only (a check never changes the locked versions; bin/tools-update does that on
-# purpose), vendor/ writable for the install. The container runs as its root, which rootless Docker
+# composer.lock read-only (a check never changes the locked versions; Dependabot does that on
+# purpose, and in the tools' own repository also bin/tools-update), vendor/ writable for the install. The container runs as its root, which rootless Docker
 # maps to the user's own account, so vendor/ on the host belongs to the user.
 in_composer_of() {
   local composer_dir="$1"

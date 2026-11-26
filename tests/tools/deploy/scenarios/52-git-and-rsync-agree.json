@@ -1,0 +1,11 @@
+{
+  "description": "The server holds exactly the commit its note names: git lists the theme's changed file, rsync's dry run lists the same, unchanged folders show none, no disagreement is said, the copy matches the preview and the proof lists nothing.",
+  "place": "staging",
+  "checks": { "{B}": [["check / check", "success"], ["check / dev-site", "success"]] },
+  "notes": { "example-staging": "{A}" },
+  "serverHolds": "{A}",
+  "expectStatus": 0,
+  "expectOutputNaming": ["git diff --name-only --no-renames {A7} {B7} -- plugins/example-plugin themes/example-child):", "themes/example-child/style.css", "example-plugin: none", "the copy matches the preview", "proof: a second dry run lists nothing in any folder", "deployed-commit rewritten to name {B7}"],
+  "expectOutputLacking": ["disagree", "change(s)", "copies, in order"],
+  "expectServerFiles": { "example-staging/deploy-note/deployed-commit": "{B}", "example-staging/example-child/style.css": "/* B */" }
+}

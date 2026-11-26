@@ -129,7 +129,7 @@ plugins_never_updated_from_wordpress_org() {
 
 require_lock_file() {
   [[ -f "$PROJECT_DIR/composer.lock" ]] && return 0
-  log "composer.lock is missing; bin/tools-update creates it"
+  log "composer.lock is missing: it is committed with composer.json; Composer writes it (composer update, in the pinned container the README's install command uses)"
   exit 1
 }
 

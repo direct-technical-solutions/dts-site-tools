@@ -3,11 +3,15 @@
 # short name, server/<short name>/<folder>/ in FAKE_SERVICES_DIR, reached the way rsync's daemon
 # mode over ssh reaches "<short name>::<folder>/": only the folders that exist there (the ones
 # the key's settings name); reading a file, listing a folder (--list-only), copying a file into
-# one, and making a folder exactly a local one (-rt --delete --checksum --itemize-changes, the
-# only copy bin/deploy makes). Every copy is written to writes.txt. It refuses to run unless ssh
-# is told never to ask for a password (BatchMode). A short name in unreachable.txt does not answer;
-# a copy into the folder the situation names as copyFailsAt fails, and one into interruptAt
-# interrupts bin/deploy as Ctrl+C would.
+# one, and making a folder exactly a local one (-r --delete --checksum --itemize-changes, the
+# only copy bin/deploy makes, also as a --dry-run). That copy is made by this computer's real
+# rsync between local folders, so its lists are rsync's own (template plan 2.1e); only the network
+# is stood in for. An old copy keeping file times (-t) is refused as unexpected. Every real copy
+# (not a dry run) is written to writes.txt. It refuses to run unless ssh is told never to ask for
+# a password (BatchMode). A short name in unreachable.txt does not answer; a copy into the folder
+# the situation names as copyFailsAt fails, and one into interruptAt interrupts bin/deploy as
+# Ctrl+C would; plantBeforeCopy and plantAfterCopy name a folder into which a file appears on the
+# server just before or just after its real copy, as a change outside the deploy would.
 set -Euo pipefail
 
 readonly SERVER="$FAKE_SERVICES_DIR/server"
@@ -18,7 +22,8 @@ readonly RSYNC_UNKNOWN_MODULE=5
 readonly RSYNC_IO_ERROR=12
 readonly RSYNC_FILE_MISSING=23
 readonly SSH_FAILED=255
-readonly MIRROR_OPTIONS="-rt --delete --checksum --itemize-changes"
+readonly MIRROR_OPTIONS="-r --delete --checksum --itemize-changes"
+readonly PLANTED_FILE="planted-on-the-server.txt"
 
 remote_shell="" options="" paths=()
 read_arguments() {
@@ -26,7 +31,7 @@ read_arguments() {
     case "$1" in
       -e) remote_shell="$2" && shift 2 ;;
       -q) shift ;;
-      --list-only | -rt | --delete | --checksum | --itemize-changes) options+="${options:+ }$1" && shift ;;
+      --list-only | -r | --delete | --checksum | --itemize-changes | --dry-run) options+="${options:+ }$1" && shift ;;
       -*) echo "fake rsync: unexpected option $1" >&2; exit "$RSYNC_SYNTAX_ERROR" ;;
       *) paths+=("$1") && shift ;;
     esac
@@ -60,19 +65,58 @@ read_file() {
   cp "$SERVER/$SSH_HOST/$FOLDER/$FOLDER_PATH" "$2"
 }
 
+# This computer's own rsync: the first one on the search path that is not this stand-in.
+real_rsync() {
+  local candidate
+  while IFS= read -r candidate; do
+    [[ "$candidate" -ef "${BASH_SOURCE[0]}" ]] || { printf '%s' "$candidate"; return 0; }
+  done < <(type -ap rsync)
+  echo "fake rsync: this computer has no rsync of its own; the deploy tests need it" >&2
+  exit "$RSYNC_SYNTAX_ERROR"
+}
+
+# The mirror copy itself, by the real rsync between local folders; the options are split into
+# words on purpose (they hold no spaces).
+mirror() {
+  local source_path="$1" target="$2" rsync_path
+  shift 2
+  rsync_path="$(real_rsync)" || exit "$RSYNC_SYNTAX_ERROR"
+  # shellcheck disable=SC2086
+  "$rsync_path" $MIRROR_OPTIONS "$@" "$source_path/" "$target/"
+}
+
+# A file appearing in the folder on the server when the situation names it for this moment.
+plant_if_named() {
+  local field="$1" target="$2"
+  [[ "$(jq -r --arg field "$field" '.[$field] // empty' "$SITUATION")" == "$FOLDER" ]] || return 0
+  printf 'changed outside the deploy\n' >"$target/$PLANTED_FILE"
+}
+
+# A failed copy, or the user pressing Ctrl+C during it. Ctrl+C reaches the whole foreground group,
+# so both bin/deploy (which runs this stand-in directly) and rsync get the signal; bash runs its
+# trap only when the child it waited for died of the signal too, so this stand-in ends by it.
+fail_or_interrupt_if_named() {
+  [[ "$(jq -r '.copyFailsAt // empty' "$SITUATION")" != "$FOLDER" ]] || { echo "rsync: write failed on \"$FOLDER\": No space left on device (28)" >&2; exit "$RSYNC_IO_ERROR"; }
+  [[ "$(jq -r '.interruptAt // empty' "$SITUATION")" == "$FOLDER" ]] || return 0
+  kill -INT "$PPID"
+  trap - INT
+  kill -INT "$$"
+}
+
 copy_in() {
   local source_path="$1" target
   reach "$2"
-  printf '%s::%s\n' "$SSH_HOST" "$FOLDER" >>"$FAKE_SERVICES_DIR/writes.txt"
-  [[ "$(jq -r '.copyFailsAt // empty' "$SITUATION")" != "$FOLDER" ]] || { echo "rsync: write failed on \"$FOLDER\": No space left on device (28)" >&2; exit "$RSYNC_IO_ERROR"; }
-  # The user pressing Ctrl+C during this copy: the signal goes to bin/deploy itself, the parent of
-  # the command substitution that runs this stand-in.
-  [[ "$(jq -r '.interruptAt // empty' "$SITUATION")" != "$FOLDER" ]] || kill -INT "$(ps -o ppid= -p "$PPID" | tr -d ' ')"
   target="$SERVER/$SSH_HOST/$FOLDER"
+  if [[ "$options" == "$MIRROR_OPTIONS --dry-run" && -d "$source_path" ]]; then
+    mirror "$source_path" "$target" --dry-run
+    return
+  fi
+  printf '%s::%s\n' "$SSH_HOST" "$FOLDER" >>"$FAKE_SERVICES_DIR/writes.txt"
+  fail_or_interrupt_if_named
   if [[ "$options" == "$MIRROR_OPTIONS" && -d "$source_path" ]]; then
-    find "$target" -mindepth 1 -delete
-    cp -r "$source_path/." "$target/"
-    (cd "$target" && find . -type f -printf '>f+++++++++ %P\n')
+    plant_if_named plantBeforeCopy "$target"
+    mirror "$source_path" "$target"
+    plant_if_named plantAfterCopy "$target"
   elif [[ -z "$options" && -f "$source_path" && -n "$FOLDER_PATH" ]]; then
     cp "$source_path" "$target/$FOLDER_PATH"
   else

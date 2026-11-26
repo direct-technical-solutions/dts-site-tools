@@ -1,0 +1,11 @@
+{
+  "description": "A file put into the theme on the server by hand: only rsync lists it (to delete), git does not, one line says they disagree, and the copy removes it.",
+  "place": "staging",
+  "checks": { "{B}": [["check / check", "success"], ["check / dev-site", "success"]] },
+  "notes": { "example-staging": "{A}" },
+  "serverHolds": "{A}",
+  "serverExtraFiles": { "example-staging/example-child/hand-edit.php": "<?php // edited on the server" },
+  "expectStatus": 0,
+  "expectOutputNaming": ["*deleting   hand-edit.php", "NOTE: git and rsync disagree about the site's own code"],
+  "expectServerMissing": ["example-staging/example-child/hand-edit.php"]
+}

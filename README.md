@@ -30,6 +30,12 @@ Composer in its pinned container (the same command the shared workflows run):
 mkdir -p vendor bin && docker run --rm -w /app -v "$PWD/composer.json:/app/composer.json:ro" -v "$PWD/composer.lock:/app/composer.lock:ro" -v "$PWD/vendor:/app/vendor" -v "$PWD/bin:/app/bin" composer:2.11.1 composer install --no-interaction --no-progress
 ```
 
+**A site that once committed its own `bin/`** (before it switched to these tools) has a trap in its
+history. Checking out one of those old commits writes the old scripts over Composer's commands in
+`bin/`, since git treats ignored files as disposable; coming back to a newer commit then deletes
+them, because the newer commit no longer tracks them, and a command answers "No such file or
+directory". Running the install command above again restores every command.
+
 The site's GitHub workflows (`check.yml`, `versions.yml`, `plugin-updates.yml`) are a few lines
 each, calling the shared ones in `.github/workflows/site-*.yml` pinned by commit. `bin/tools-pin`
 writes them from `tools/site-workflows/` for the release `composer.lock` installs; `bin/check`

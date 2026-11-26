@@ -4,7 +4,7 @@
 # main that changes nothing but site-packages/, and in its lock file nothing but WordPress.org
 # plugins, whose files the dev site checks against WordPress.org's checksums. Anything else
 # (composer/installers, which runs code as Composer installs; any tool, the tools' own release
-# included) waits for the user's review. It switches on GitHub's auto-merge, by rebase; the
+# included) waits for the user's review. It switches on GitHub's auto-merge, by squash; the
 # required checks still decide, and the merge changes nothing on staging or live, which get a
 # tested version only when the user deploys. A pull request that fails, or falls behind main, stays
 # open, and the weekly versions check opens an issue about it after a few days.
@@ -78,6 +78,25 @@ jobs:
             echo "plugins-only=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Switch on auto-merge (by rebase, once the required checks pass)
+      # Squash, the way every pull request merges (the user, 2026-11-26), keeping Dependabot's own
+      # commit message: passed explicitly, so the result does not depend on each site's default
+      # squash-message setting. Only a pull request of exactly one commit is Dependabot's alone; a
+      # commit someone added waits for the user. The merge is bound to the head commit checked
+      # above (--match-head-commit), so a commit pushed afterwards cannot ride along.
+      - name: Switch on auto-merge (by squash, once the required checks pass)
         if: steps.scope.outputs.plugins-only == 'true'
-        run: gh pr merge --auto --rebase "$PR_URL"
+        env:
+          REPOSITORY: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          commits="$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER/commits" --jq 'length')"
+          if [ "$commits" != 1 ]; then
+            printf 'The pull request has %s commits, not Dependabot'"'"'s one, so it waits for the user.\n' "$commits"
+            exit 0
+          fi
+          gh api "repos/$REPOSITORY/commits/$HEAD_SHA" --jq '.commit.message' > "$RUNNER_TEMP/message"
+          head -n 1 "$RUNNER_TEMP/message" > "$RUNNER_TEMP/subject"
+          tail -n +3 "$RUNNER_TEMP/message" > "$RUNNER_TEMP/body"
+          gh pr merge --auto --squash --match-head-commit "$HEAD_SHA" \
+            --subject "$(cat "$RUNNER_TEMP/subject")" --body-file "$RUNNER_TEMP/body" "$PR_URL"

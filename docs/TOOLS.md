@@ -176,7 +176,8 @@ the other site's `SITE_DIR`. `bin/check` always checks this repository; `bin/dep
   download addresses (all on `downloads.wordpress.org`, which `bin/check` and `bin/dev-site`
   require). Separate from the top-level `composer.json`, which holds only the code-checking tools.
   Dependabot proposes the plugins' updates weekly, a release at least 7 days old, in one pull
-  request (`.github/dependabot.yml`), which merges itself by rebase once its checks pass
+  request (`.github/dependabot.yml`), which merges itself by squash, keeping Dependabot's own
+  commit message, once its checks pass
   (`.github/workflows/plugin-updates.yml`, template plan T9: only Dependabot's pull requests into
   `main` changing nothing but `site-packages/`, and in its lock file nothing but WordPress.org
   plugins; it runs `main`'s own code, never the pull request's). Updates to
@@ -214,9 +215,20 @@ the other site's `SITE_DIR`. `bin/check` always checks this repository; `bin/dep
   file refuses; one listed but missing from the download is shown, not refused, as WP-CLI's
   check on the dev site does, 1.5b), checks each folder
   exists on the server for the key, and refuses to lower a downloaded plugin the host updated
-  unless `--allow-lower` names it. After "yes" it copies the downloaded plugins, the site's own
-  plugins and the theme, each folder made exactly the commit's, then writes the note, and names
-  any folder that was empty there (to activate by hand). Then the page check
+  unless `--allow-lower` names it. What it shows comes straight from git and rsync as they print
+  it (template plan T23, 2.1e): before "yes", what git says changed in the site's own code
+  (`git diff --name-only --no-renames` between the note's commit and the new one, over the theme
+  and the site's plugins, the command in its heading, `none` when empty, or why there is nothing
+  to compare with), and what rsync will change on the server (a `--dry-run` of exactly the copy
+  that follows, folder by folder, the downloaded plugins included); when the two disagree about
+  the site's own code, one line says so (a change on the server outside a deploy, which only
+  rsync sees). The copy compares by content and does not copy file times, so a file with the same
+  content is neither listed nor touched; a change to a file's mode alone is not copied, and git
+  listing one makes the two disagree. After "yes" it copies the downloaded plugins, the site's own
+  plugins and the theme, each folder made exactly the commit's, showing rsync's own list and
+  whether it matches the preview; then a second dry run of every folder must list nothing, or it
+  stops without writing the note; then it writes the note, and names any folder that was empty
+  there (to activate by hand). Then the page check
   (`bin/site-check`; failing, it fails the deploy and names the way back, `--commit` with the
   commit the place ran before), given a place's password login from `.env`
   (`<PLACE>_CHECK_USER`, `<PLACE>_CHECK_PASSWORD`, read by exact name), and the PHP log's lines
@@ -261,11 +273,14 @@ the other site's `SITE_DIR`. `bin/check` always checks this repository; `bin/dep
   since the baseline, with marked images in `screenshots/` (ignored by git). Outside services
   are answered locally; a page that does not answer 200 fails. Whether a change looks right is
   the user's call.
-- `bin/tools-update`: the deliberate way to update the tools, `composer.lock`,
-  `tests/e2e/package-lock.json`, `tools/css-lint/package-lock.json` and
-  `tools/js-check/package-lock.json` (npm only from releases
-  at least 7 days old, install scripts off); then `bin/check`, review the lock files' diff,
-  commit.
+- `bin/tools-update`, in the tools' own repository only (never installed into a site, and
+  refused in an installed copy): the deliberate way to update the tools' lock files,
+  `composer.lock`, `tests/e2e/package-lock.json`, `tools/css-lint/package-lock.json` and
+  `tools/js-check/package-lock.json`, each worked out in a temporary copy (npm only from
+  releases at least 7 days old, install scripts off). For the updates Dependabot is told to
+  leave alone: Playwright (raised together with its image in `tools/versions.sh`) and the
+  versions held back on purpose, each raised in its manifest first. Then the self-check
+  (`tests/tools/check-tools.sh`), the lock files' diff reviewed line by line, commit.
 - `bin/tools-pin` (template plan 2.1c, T22): writes the site's `.github/workflows/check.yml`,
   `versions.yml` and `plugin-updates.yml` from `tools/site-workflows/`, each calling a shared
   workflow (`.github/workflows/site-*.yml` here) pinned to the commit of the tools release the

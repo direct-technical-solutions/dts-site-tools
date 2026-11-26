@@ -3,5 +3,5 @@
   "place": "staging",
   "checks": { "{B}": [["check / check", "success"], ["check / dev-site", "success"]] },
   "expectStatus": 0,
-  "expectOutputNaming": ["no note yet"]
+  "expectOutputNaming": ["no note yet", "nothing to compare with: staging has no note yet"]
 }

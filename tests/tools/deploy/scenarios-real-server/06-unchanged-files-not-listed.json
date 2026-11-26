@@ -1,0 +1,11 @@
+{
+  "description": "Over the real daemon, the server holding the note's commit with every file dated long ago: files with the same content are not listed (no copy of file times), git and rsync agree, the copy matches the preview and the proof lists nothing.",
+  "place": "staging",
+  "checks": { "{B}": [["check / check", "success"], ["check / dev-site", "success"]] },
+  "notes": { "example-staging": "{A}" },
+  "serverHolds": "{A}",
+  "expectStatus": 0,
+  "expectOutputNaming": ["example-plugin: none", "style.css", "the copy matches the preview", "proof: a second dry run lists nothing in any folder"],
+  "expectOutputLacking": ["disagree", "example-plugin.php"],
+  "expectServerFiles": { "example-staging/deploy-note/deployed-commit": "{B}", "example-staging/example-child/style.css": "/* B */" }
+}

@@ -8,6 +8,35 @@ change how a site calls the tools.
 
 ## [Unreleased]
 
+### Changed
+
+- `bin/deploy`'s messages come straight from git and rsync. Before "yes": what git says changed
+  in the site's own code since the commit the server's note names, and rsync's dry run of
+  exactly the copy that follows, folder by folder, with one line when the two disagree about the
+  site's own code. After "yes": rsync's own list for each folder and whether it matches the
+  preview. The per-folder change counts and the `copies, in order` line are gone.
+- `bin/deploy` no longer copies file times (`-t`), so a file with the same content is neither
+  listed nor touched. Each file it does copy gets the time of the copy on the server.
+- `bin/deploy` makes a second dry run after the copy, and stops without writing the note when it
+  still lists anything.
+- The tested-commit line says the pull request was merged by squash or rebase, and that the
+  merge made a new commit with the same files as its tested last commit.
+- `site-plugin-updates.yml` merges Dependabot's plugin updates by squash (it rebased), passing
+  Dependabot's own commit message and binding the merge to the head commit it checked; a pull
+  request with more than one commit waits for review. **A site switching to this release must
+  allow squash merges** in its repository's settings, or its plugin updates stop merging
+  themselves.
+- The README names the trap in a site that once committed its own `bin/`, and its fix.
+
+### Fixed
+
+- `bin/tools-update` runs in the tools' own repository again: it looked for a site's
+  `site.json` and refused there. It now works on the tools' folder alone, refuses an installed
+  copy (no `.git`), and shares the self-check's caches; its safeguards are unchanged. The
+  self-check tests it with a stand-in Docker.
+- `bin/check`'s message for a missing `composer.lock` no longer sends a site to
+  `bin/tools-update`, which a site does not have.
+
 ## [0.2.0] - 2026-11-24
 
 ### Added

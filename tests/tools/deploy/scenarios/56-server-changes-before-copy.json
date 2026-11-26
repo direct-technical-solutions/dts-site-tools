@@ -1,0 +1,12 @@
+{
+  "description": "A file appearing in the site's plugin on the server between the preview and the copy: the copy's own list differs from the preview and the difference is shown; the proof then lists nothing, so the deploy goes on.",
+  "place": "staging",
+  "checks": { "{B}": [["check / check", "success"], ["check / dev-site", "success"]] },
+  "notes": { "example-staging": "{A}" },
+  "serverHolds": "{A}",
+  "plantBeforeCopy": "example-plugin",
+  "expectStatus": 0,
+  "expectOutputNaming": ["example-plugin: the copy differs from the preview", "planted-on-the-server.txt", "proof: a second dry run lists nothing"],
+  "expectOutputLacking": ["the copy matches the preview"],
+  "expectServerMissing": ["example-staging/example-plugin/planted-on-the-server.txt"]
+}
