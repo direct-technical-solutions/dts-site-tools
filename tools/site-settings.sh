@@ -147,6 +147,15 @@ compose_mount_source() {
   printf '%s\n' "$folder"
 }
 
+# .env's COMPOSE_FILE: the dev site's two recipe files as Docker Compose finds them for commands
+# typed in the site's repository, the tools' shared one where the tools are (the repository's top
+# in the tools' own repository, vendor/dts/site-tools/ in a site) and the site's own written one.
+# The tools themselves always name both files and never read it.
+dev_compose_files() {
+  printf '%s:%s\n' "$(compose_mount_source "$TOOLS_DIR/compose.dev.yaml")" \
+    "$(compose_mount_source "$SITE_COMPOSE_FILE")"
+}
+
 # Writes compose.site.yaml, the dev site's own part of its recipe, from site.json (template plan
 # 1.2f): the project's name ("<slug>-dev", which also names the database volume) and the folders
 # mounted read-only, the theme, each of the site's own plugins and the tools' dev-only must-use

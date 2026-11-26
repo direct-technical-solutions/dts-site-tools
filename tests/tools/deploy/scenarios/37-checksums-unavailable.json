@@ -1,7 +1,7 @@
 {
   "description": "WordPress.org's checksum file not available: refused, never copying an unchecked plugin.",
   "place": "staging",
-  "checks": { "{B}": [["check", "success"], ["dev-site", "success"]] },
+  "checks": { "{B}": [["check / check", "success"], ["check / dev-site", "success"]] },
   "notes": { "example-staging": "{A}" },
   "checksumsUnavailable": true,
   "expectStatus": 1,

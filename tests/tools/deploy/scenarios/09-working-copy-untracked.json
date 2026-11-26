@@ -1,7 +1,7 @@
 {
   "description": "A new file not committed: refused, naming it.",
   "place": "staging",
-  "checks": { "{B}": [["check", "success"], ["dev-site", "success"]] },
+  "checks": { "{B}": [["check / check", "success"], ["check / dev-site", "success"]] },
   "workingCopy": "untracked",
   "expectStatus": 1,
   "expectOutputNaming": ["untracked.txt"]

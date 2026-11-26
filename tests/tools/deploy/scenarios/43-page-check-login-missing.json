@@ -1,7 +1,7 @@
 {
   "description": "staging behind its password with no login in .env: refused before anything is copied, naming the settings.",
   "place": "staging",
-  "checks": { "{B}": [["check", "success"], ["dev-site", "success"]] },
+  "checks": { "{B}": [["check / check", "success"], ["check / dev-site", "success"]] },
   "notes": { "example-staging": "{A}" },
   "noPageCheckLogin": true,
   "expectStatus": 1,

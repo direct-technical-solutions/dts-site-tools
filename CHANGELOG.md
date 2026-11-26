@@ -8,6 +8,40 @@ change how a site calls the tools.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-24
+
+### Added
+
+- The shared workflows a site calls, pinned by commit: `site-check.yml` (the `check` and
+  `dev-site` jobs), `site-versions.yml` and `site-plugin-updates.yml`. Each installs the tools
+  from the site's `composer.lock` first, giving Composer the run's read-only token.
+- `bin/tools-pin`: writes the site's `check.yml`, `versions.yml` and `plugin-updates.yml` workflows
+  from `tools/site-workflows/`, pinned to the commit of the tools release `composer.lock` installs.
+- `bin/check`, in a site that installs the tools: the site's three workflows must be exactly what
+  `bin/tools-pin` writes. A site switching to this release runs `bin/tools-pin` and commits its
+  three files; the required checks' names on GitHub change with them.
+
+### Changed
+
+- `bin/deploy` requires the checks `check / check` and `check / dev-site`, the names GitHub gives
+  the shared workflow's jobs when a site calls it (it required `check` and `dev-site`). A site
+  switching to this release sets its branch protection to the new names; a commit tested only
+  under the old names is refused until its checks run again.
+- The install command for a fresh clone, in the README.
+- The self-check: every command in `bin/` is one Composer installs into a site (`composer.json`'s
+  `bin`), apart from the tools repository's own `bin/tools-update`.
+
+### Fixed
+
+- `bin/tools-pin` is installed into a site's `bin/` (it was missing from `composer.json`'s `bin`).
+- The deploy tests work on their own stand-in site even when run from a site's `bin/test`: they
+  cleared GitHub's tokens but not `COMPOSER_RUNTIME_BIN_DIR` or `SITE_DIR`, so `bin/deploy` worked
+  on the real site and refused its commit.
+- A new `.env` names the dev site's shared Compose file where the tools are installed
+  (`vendor/dts/site-tools/compose.dev.yaml` in a site), so hand-typed `docker compose` commands
+  find it. An existing `.env` keeps its line: a site switching to this release changes its
+  `COMPOSE_FILE` by hand.
+
 ## [0.1.0] - 2026-11-24
 
 ### Added
@@ -23,5 +57,6 @@ change how a site calls the tools.
   PHPCSUtils 1.2.3, PHPCSExtra 1.5.1, PHPStan 2.3.5, PHPStan for WordPress 2.0.4 and the
   WordPress stubs 7.1.2.
 
-[Unreleased]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/direct-technical-solutions/dts-site-tools/releases/tag/v0.1.0

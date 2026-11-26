@@ -1,7 +1,7 @@
 {
   "description": "An SSH settings file whose path has a space, which rsync would split: refused at the start, naming the option.",
   "place": "staging",
-  "checks": { "{B}": [["check", "success"], ["dev-site", "success"]] },
+  "checks": { "{B}": [["check / check", "success"], ["check / dev-site", "success"]] },
   "sshConfigFile": "my ssh config",
   "expectStatus": 2,
   "expectOutputNaming": ["--ssh-config"]

@@ -1,7 +1,7 @@
 {
   "description": "live after staging runs the same commit, over the real daemon: both notes read, live's folders copied.",
   "place": "live",
-  "checks": { "{B}": [["check", "success"], ["dev-site", "success"]] },
+  "checks": { "{B}": [["check / check", "success"], ["check / dev-site", "success"]] },
   "notes": { "example-staging": "{B}", "example-live": "{A}" },
   "expectStatus": 0,
   "expectServerFiles": {

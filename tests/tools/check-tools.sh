@@ -2,8 +2,9 @@
 # The tools' self-check (template plan T20): every check of the tools themselves, as opposed to the
 # site they work on. The tools' own tests (tests/tools/*), the checks' refusals tried on known bad
 # examples, the explanation of site.json's fields, the tools' PHP (the dev site's must-use plugins),
-# their scripts (ShellCheck), their browser tests' types, and the audits of the packages they
-# bring. Needs no site: it reads only the tools' own folder, so it runs in the tools' own
+# their scripts (ShellCheck), their browser tests' types, the shared workflows with the site's
+# callers (actionlint, and the install commands' Composer image), and the audits of the packages
+# they bring. Needs no site: it reads only the tools' own folder, so it runs in the tools' own
 # repository; a site's bin/check runs it too while the tools are the site's own (this layout until
 # the site installs them through Composer). Only Docker and jq are needed on the host. Every check
 # runs even after a failure; the exit status is 1 if any check failed.
@@ -29,6 +30,8 @@ source "$TOOLS_DIR/tools/check-lib.sh"
 source "$TOOLS_DIR/tools/site-settings.sh"
 # shellcheck source=tools/site-packages.sh
 source "$TOOLS_DIR/tools/site-packages.sh"
+# shellcheck source=tools/tools-pin.sh
+source "$TOOLS_DIR/tools/tools-pin.sh"
 
 # The broken examples the site.json checks must keep refusing (tests/tools/site-settings/), each
 # with the field it breaks, which the refusal must name; the wording around it may change. So a
@@ -56,6 +59,9 @@ readonly SITE_SETTINGS_BAD_EXPLANATIONS=(
 # The same for bin/dev-site's own refusals (tests/tools/dev-site/), which run before it changes
 # anything: each broken example must be refused naming what it breaks, each good one accepted.
 readonly DEV_SITE_EXAMPLES_DIR="$TOOLS_DIR/tests/tools/dev-site"
+# The commands only the tools repository uses, never installed into a site: bin/tools-update
+# updates the tools' own lock files, while a site gets tools updates through Dependabot (T18).
+readonly TOOLS_ONLY_COMMANDS=(tools-update)
 
 # The tools' PHP checkers: the installed checkers, their settings for the tools' own PHP
 # (tools/php-check/) and the must-use plugins they check, all read-only.
@@ -78,6 +84,21 @@ scripts_can_be_run() {
     missing=1
   done
   return "$missing"
+}
+
+# Composer copies into a site's bin/ only the commands composer.json lists under "bin", so a
+# command left out exists here and is missing in every site (bin/tools-pin was, until template
+# plan 2.1d). Every script in bin/ is listed, apart from the tools repository's own commands, and
+# every listed command exists.
+commands_listed_for_composer() {
+  local differences
+  differences="$(diff <(find "$TOOLS_DIR/bin" -maxdepth 1 -type f -printf 'bin/%f\n' |
+    grep -vxF -f <(printf 'bin/%s\n' "${TOOLS_ONLY_COMMANDS[@]}") | sort) \
+    <(jq -r '.bin[]' "$TOOLS_DIR/composer.json" | sort))"
+  [[ -z "$differences" ]] && return 0
+  log "bin/ and composer.json's \"bin\" disagree (< only in bin/, > only in composer.json):"
+  printf '%s\n' "$differences" | grep '^[<>]' | sed 's/^/    /' >&2
+  return 1
 }
 
 # Every field is explained in tools/site-settings.md, and nothing else is.
@@ -207,6 +228,58 @@ playwright_versions_match() {
   return 1
 }
 
+# Every copy of the tools' install command (the shared workflows install the tools before any of
+# their files exist, so the command is written out in each, and in the README for a fresh clone)
+# names the Composer image tools/versions.sh pins, so raising it there cannot leave one behind.
+install_commands_use_pinned_composer() {
+  local stale
+  stale="$(grep -nE 'composer:[0-9]' "$TOOLS_DIR"/.github/workflows/site-*.yml "$TOOLS_DIR/README.md" |
+    grep -vF "$COMPOSER_IMAGE composer install" || true)"
+  [[ -z "$stale" ]] && return 0
+  log "install commands not on tools/versions.sh's $COMPOSER_IMAGE:"
+  printf '%s\n' "${stale//"$TOOLS_DIR"\//}" | sed 's/^/    /' >&2
+  return 1
+}
+
+# The tools' own workflows, and the site's callers as bin/tools-pin writes them, checked before they
+# are pushed: a broken workflow would otherwise show only as a failed run in a site. actionlint
+# works offline, so it cannot open a workflow called by its GitHub address, and a caller's inputs
+# and permissions would go unchecked against the shared workflow (tried 2026-11-24: a misspelled
+# input passed). So the callers are checked in a copy of the workflows folder where each calls its
+# shared workflow by a local path, which actionlint follows once it finds the repository's root,
+# a .git folder.
+actionlint_tools_workflows() {
+  local work status=0
+  work="$(mktemp -d)"
+  write_workflows_with_local_callers "$work" || status=1
+  if [[ "$status" -eq 0 ]]; then
+    docker run --rm -w /repo -v "$work:/repo:ro" "$ACTIONLINT_IMAGE" -color || status=1
+  fi
+  rm -rf "$work"
+  return "$status"
+}
+
+# The tools' workflows, beside the callers (named site-caller-*.yml) written with a stand-in commit
+# whose GitHub address is then replaced by the local path; fails, naming the caller, if one is left
+# calling an address, since actionlint would then pass it without checking it.
+write_workflows_with_local_callers() {
+  local work="$1" caller left_calling_address
+  mkdir -p "$work/.git" "$work/.github/workflows" "$work/callers"
+  cp "$TOOLS_DIR"/.github/workflows/*.yml "$work/.github/workflows/"
+  tools_pin_write "$work/callers" 0123456789abcdef0123456789abcdef01234567 v0.0.0
+  for caller in "$work"/callers/*.yml; do
+    sed -E 's#uses: direct-technical-solutions/dts-site-tools/(\.github/workflows/[a-z-]+\.yml)@[0-9a-f]{40} \# .*$#uses: ./\1#' \
+      "$caller" >"$work/.github/workflows/site-caller-$(basename "$caller")"
+  done
+  rm -r "$work/callers"
+  # mktemp's folder is private; actionlint's image runs as a user of its own, which must read it.
+  chmod -R a+rX "$work"
+  left_calling_address="$(grep -l 'uses: direct-technical-solutions/' "$work"/.github/workflows/site-caller-*.yml || true)"
+  [[ -z "$left_calling_address" ]] && return 0
+  log "callers still calling by address, which actionlint would not check: $(xargs -n1 basename <<<"$left_calling_address" | paste -sd ' ')"
+  return 1
+}
+
 # The tools' own scripts: the commands, the scenario checks (in their groups' folders, template
 # plan 1.3a) and the tools' tests with their stand-in commands, which have no extension (1.3c).
 # -x follows each script's `source` of the tools' libraries; the tools' folder is the source path.
@@ -250,10 +323,13 @@ run_rule_checks() {
   run_check "Static analysis (the dev site's must-use plugins)" in_tools_php_check \
     php "$PHPSTAN_ENTRY" analyse -c tools/php-check/phpstan.neon.dist --no-progress --memory-limit=1G
   run_check "Every script in bin/ can be run" scripts_can_be_run
+  run_check "Every site command is installed by Composer (composer.json's bin)" commands_listed_for_composer
   run_check "site.json's fields are explained" site_json_fields_explained
   run_check "The site.json checks refuse bad examples" site_json_checks_refuse_bad_examples
   run_check "bin/dev-site's refusals refuse bad examples" dev_site_refusals_refuse_bad_examples
   run_check "Playwright versions match" playwright_versions_match
+  run_check "The install commands use the pinned Composer image" install_commands_use_pinned_composer
+  run_check "GitHub workflows (actionlint): the tools' own and the site's callers" actionlint_tools_workflows
 }
 
 run_tools_tests() {
@@ -268,6 +344,7 @@ run_tools_tests() {
   run_check "The theme assembly on known examples" tools_test site-theme
   run_check "The dev-site guard on known examples" tools_test dev-site-guard
   run_check "The tools find the site with the tools apart" tools_test paths
+  run_check "The workflows' pin on known examples" tools_test tools-pin
 }
 
 main() {

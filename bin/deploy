@@ -51,9 +51,12 @@ source "$TOOLS_DIR/tools/site-packages.sh"
 # shellcheck source=tools/versions.sh
 source "$TOOLS_DIR/tools/versions.sh"
 
-# The jobs of .github/workflows/check.yml that must pass before code reaches a server; the same for
-# every site, since the workflow comes with the tools.
-readonly REQUIRED_CHECKS=(check dev-site)
+# The check runs that must pass before code reaches a server: the two jobs of the shared
+# site-check.yml, which GitHub names "<caller's job> / <called job>" since the site's check.yml
+# (written by bin/tools-pin) calls it from its job "check" (seen in the first site's run, template
+# plan 2.1d). The same for every site. A commit tested before a site called the shared workflow
+# has only the old names ("check", "dev-site") and is refused until its checks run again.
+readonly REQUIRED_CHECKS=("check / check" "check / dev-site")
 readonly MAIN_BRANCH="main"
 # The note on the server saying which commit a place runs: a folder of its own for each place's
 # key, outside the web folders, holding one file whose first line is the commit.

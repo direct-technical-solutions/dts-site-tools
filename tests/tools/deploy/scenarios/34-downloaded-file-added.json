@@ -1,7 +1,7 @@
 {
   "description": "A built file that is not in WordPress.org's release: refused, naming it, nothing copied.",
   "place": "staging",
-  "checks": { "{B}": [["check", "success"], ["dev-site", "success"]] },
+  "checks": { "{B}": [["check / check", "success"], ["check / dev-site", "success"]] },
   "notes": { "example-staging": "{A}" },
   "tamperDownloaded": "added",
   "expectStatus": 1,

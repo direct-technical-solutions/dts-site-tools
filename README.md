@@ -15,13 +15,29 @@ site's own `bin/` (both `vendor/` and `bin/` ignored by the site's git):
     "repositories": [
         { "type": "vcs", "url": "https://github.com/direct-technical-solutions/dts-site-tools" }
     ],
-    "require-dev": { "dts/site-tools": "0.1.0" },
+    "require-dev": { "dts/site-tools": "0.2.0" },
     "config": {
         "bin-dir": "bin",
         "allow-plugins": { "dealerdirect/phpcodesniffer-composer-installer": true }
     }
 }
 ```
+
+After a fresh clone, and after each change to `composer.lock`, the site installs the tools with
+Composer in its pinned container (the same command the shared workflows run):
+
+```sh
+mkdir -p vendor bin && docker run --rm -w /app -v "$PWD/composer.json:/app/composer.json:ro" -v "$PWD/composer.lock:/app/composer.lock:ro" -v "$PWD/vendor:/app/vendor" -v "$PWD/bin:/app/bin" composer:2.11.1 composer install --no-interaction --no-progress
+```
+
+The site's GitHub workflows (`check.yml`, `versions.yml`, `plugin-updates.yml`) are a few lines
+each, calling the shared ones in `.github/workflows/site-*.yml` pinned by commit. `bin/tools-pin`
+writes them from `tools/site-workflows/` for the release `composer.lock` installs; `bin/check`
+fails when they differ from what it writes. After a tools update (Dependabot raises the Composer
+pin, never the workflows' commit), `bin/tools-pin` is run on the update's branch and its three
+files committed there. The required checks, in the site's branch protection and for `bin/deploy`,
+are the shared workflow's two jobs as GitHub names them when called: `check / check` and
+`check / dev-site`.
 
 The site describes itself in `site.json` (each field explained in
 [`tools/site-settings.md`](tools/site-settings.md)). What each command does:

@@ -100,7 +100,9 @@ the other site's `SITE_DIR`. `bin/check` always checks this repository; `bin/dep
   site, and `compose.site.yaml`, the site's own name and mounts (its theme, its own plugins and
   the tools' dev-only must-use plugins, by their place on this computer), written from `site.json` by
   `bin/dev-site`, `bin/check` and `bin/screenshots` (ignored by git; never edited). `.env`'s
-  `COMPOSE_FILE` names both, so the commands below, typed in the repository's folder, use them.
+  `COMPOSE_FILE` names both, so the commands below, typed in the repository's folder, use them;
+  `bin/dev-site` writes it when it creates `.env`, with the shared file where the tools are
+  (`vendor/dts/site-tools/compose.dev.yaml` in a site).
   After changing `site.json`, run `bin/dev-site` before typing them, so the written file follows.
 - `docker compose stop` / `start`: stop and start without losing anything.
 - `docker compose run --rm cli wp <command>`: WP-CLI against the dev site.
@@ -203,7 +205,8 @@ the other site's `SITE_DIR`. `bin/check` always checks this repository; `bin/dep
   (template plan 1.4, T11; handbook chapter 2), run by the user from this computer, the way every
   change reaches staging and live since 2026-11-22 (1.4e; `docs/ROUTINES.md`, "Deploying"). It
   refuses unless the working copy is clean, the commit is on GitHub's `main`
-  and its required checks (`check`, `dev-site`) passed on it or on its merged pull request's last
+  and its required checks (`check / check`, `check / dev-site`: the shared workflow's two jobs as
+  GitHub names them when the site's `check.yml` calls it) passed on it or on its merged pull request's last
   commit with the same files, and on live unless staging runs that commit; it reads the place's
   note on the server and shows the commits arriving or taken away. Before asking "yes", it exports
   the commit, builds its downloaded plugins from its `composer.lock` (the pinned Composer
@@ -263,6 +266,17 @@ the other site's `SITE_DIR`. `bin/check` always checks this repository; `bin/dep
   `tools/js-check/package-lock.json` (npm only from releases
   at least 7 days old, install scripts off); then `bin/check`, review the lock files' diff,
   commit.
+- `bin/tools-pin` (template plan 2.1c, T22): writes the site's `.github/workflows/check.yml`,
+  `versions.yml` and `plugin-updates.yml` from `tools/site-workflows/`, each calling a shared
+  workflow (`.github/workflows/site-*.yml` here) pinned to the commit of the tools release the
+  site's `composer.lock` installs; it refuses a lock file without the tools, with a short commit
+  or an unusable version, and writes nothing then. Run when a site starts using the tools and on
+  the branch of each tools update, since Dependabot raises only the Composer pin. In such a site
+  `bin/check` fails when the three files differ from what it writes (a commit left behind, a hand
+  edit, a file missing); the site's other workflows are left alone. The shared workflows install
+  the tools first with the README's install command, Composer given the run's read-only token;
+  the self-check holds every copy of that command to `tools/versions.sh`'s Composer image and runs
+  actionlint on the shared workflows and on the callers as written.
 - `tools/versions.sh`: the one place for the images and downloads these scripts use (the parent
   theme with its SHA-256); the self-check fails if the Playwright image and `@playwright/test`
   differ. npm installs run with `--ignore-scripts`. `tools/settings.sh`: the `.env` handling of
