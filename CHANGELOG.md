@@ -8,6 +8,30 @@ change how a site calls the tools.
 
 ## [Unreleased]
 
+### Added
+
+- DTS's own plugins as downloaded plugins (template plan T25): a site lists one in
+  `site-packages/composer.json` as `dts/<slug>` at a release tag of its repository
+  `direct-technical-solutions/dts-<slug>`. `bin/check`, `bin/dev-site` and `bin/deploy` accept
+  one only as GitHub's archive of the release commit the lock records, from that repository;
+  `bin/dev-site` and `bin/deploy` also require the download's header to name the pin's version
+  (the tag without its `v`). `bin/deploy`'s pins line, its "never lower" check and its copy
+  cover them, and its downloaded plugins' section names GitHub when one is there. Their updates
+  wait for the user, as before for anything that is not a WordPress.org plugin.
+- `bin/check`, `bin/dev-site` and `bin/deploy` refuse two downloaded plugins sharing one folder,
+  and a plugin both in `localPlugins` and downloaded.
+
+### Changed
+
+- `bin/check`'s download check is named "Site packages: every download from its trusted source"
+  (it was "downloads come from WordPress.org") and also refuses plugins the tools cannot install.
+- `bin/test` leaves out the tests of every plugin the dev site does not install, for every site
+  (it did so only for a site other than the tools' own repository's), and names each.
+- The `dev-site` job gives `bin/dev-site` the run's read-only token as `COMPOSER_AUTH`, which
+  `bin/dev-site` and `bin/deploy` pass to `site-packages/`'s Composer when set: DTS's plugins
+  download from GitHub's API, which limits requests without one.
+- `bin/versions-check`'s alert for a release never proposed reads only WordPress.org's plugins.
+
 ## [0.3.1] - 2026-11-26
 
 ### Changed

@@ -200,6 +200,30 @@ site_package_refusals_refuse_bad_examples() {
     "$(site_packages_booking_form_problem "$examples/booking-form.txt" "$examples/lock-without-form-plugin.json")" || failed=1
   expect_acceptance "lock-with-form-plugin.json" \
     "$(site_packages_unsupported_plugins "$good")$(site_packages_booking_form_problem "$examples/booking-form.txt" "$good")$(site_packages_download_problems "$good")" || failed=1
+  dts_plugin_refusals_refuse_bad_examples || failed=1
+  return "$failed"
+}
+
+# DTS's own plugins (template plan T25): only GitHub's archive of the release commit, from the
+# plugin's own repository in DTS's organization, at a pin its download's header agrees with, one
+# plugin per folder.
+dts_plugin_refusals_refuse_bad_examples() {
+  local examples="$DEV_SITE_EXAMPLES_DIR" good="$DEV_SITE_EXAMPLES_DIR/lock-with-dts-plugin.json" failed=0
+  local download="$DEV_SITE_EXAMPLES_DIR/downloads/example-release" name="dts/example-release"
+  expect_refusal "lock-with-dts-other-commit.json" "$name" \
+    "$(site_packages_download_problems "$examples/lock-with-dts-other-commit.json")" || failed=1
+  expect_refusal "lock-with-dts-foreign-source.json" "$name" \
+    "$(site_packages_download_problems "$examples/lock-with-dts-foreign-source.json")" || failed=1
+  expect_refusal "lock-with-dts-branch.json" "$name" \
+    "$(site_packages_download_problems "$examples/lock-with-dts-branch.json")" || failed=1
+  expect_refusal "lock-with-folder-clash.json" "example-release" \
+    "$(site_packages_unsupported_plugins "$examples/lock-with-folder-clash.json")" || failed=1
+  expect_refusal "lock-with-dts-plugin.json with localPlugins example-release" "example-release" \
+    "$(site_packages_local_plugin_clashes "$good" other-plugin example-release)" || failed=1
+  expect_refusal "lock-with-dts-other-version.json" "example-release" \
+    "$(site_packages_header_version_problem "$examples/lock-with-dts-other-version.json" "$download" example-release)" || failed=1
+  expect_acceptance "lock-with-dts-plugin.json" \
+    "$(site_packages_unsupported_plugins "$good")$(site_packages_download_problems "$good")$(site_packages_local_plugin_clashes "$good" other-plugin)$(site_packages_header_version_problem "$good" "$download" example-release)" || failed=1
   return "$failed"
 }
 

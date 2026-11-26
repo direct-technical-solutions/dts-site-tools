@@ -1,0 +1,11 @@
+{
+  "description": "The built DTS plugin's main file names another version than its pin: refused, naming both versions, nothing copied.",
+  "place": "staging",
+  "checks": { "{B}": [["check / check", "success"], ["check / dev-site", "success"]] },
+  "notes": { "example-staging": "{A}" },
+  "dtsPluginInB": true,
+  "dtsHeaderVersion": "1.9.0",
+  "expectStatus": 1,
+  "expectOutputNaming": ["example-release: the download says version 1.9.0, the pin 2.0.0"],
+  "expectWrites": []
+}

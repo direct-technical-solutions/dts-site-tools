@@ -1,0 +1,29 @@
+{
+  "packages": [
+    {
+      "name": "wpackagist-plugin/example-release",
+      "version": "1.0.0",
+      "type": "wordpress-plugin",
+      "dist": {
+        "type": "zip",
+        "url": "https://downloads.wordpress.org/plugin/example-release.1.0.0.zip"
+      }
+    },
+    {
+      "name": "dts/example-release",
+      "version": "v1.0.0",
+      "type": "wordpress-plugin",
+      "source": {
+        "type": "git",
+        "url": "https://github.com/direct-technical-solutions/dts-example-release.git",
+        "reference": "1111111111111111111111111111111111111111"
+      },
+      "dist": {
+        "type": "zip",
+        "url": "https://api.github.com/repos/direct-technical-solutions/dts-example-release/zipball/1111111111111111111111111111111111111111",
+        "reference": "1111111111111111111111111111111111111111",
+        "shasum": ""
+      }
+    }
+  ]
+}

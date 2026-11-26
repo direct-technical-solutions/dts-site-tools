@@ -150,13 +150,16 @@ site_json_is_valid() {
   return 1
 }
 
-# Every WordPress.org plugin in site-packages/composer.lock downloads from WordPress.org's own
-# server; the lock file's addresses come from WPackagist, a third party (template plan T8).
-site_packages_downloads_from_wordpress_org() {
+# Every plugin in site-packages/composer.lock is one the tools can install and downloads from its
+# one trusted source: a WordPress.org plugin from WordPress.org's own server (the addresses come
+# from WPackagist, a third party, template plan T8), a DTS plugin as GitHub's archive of its
+# release commit (T25); no two share a folder, and none is also one of the site's own plugins.
+site_packages_downloads_trusted() {
   local problems
-  problems="$(site_packages_download_problems "$SITE_PACKAGES_LOCK")"
+  problems="$(site_packages_unsupported_plugins "$SITE_PACKAGES_LOCK"; site_packages_download_problems "$SITE_PACKAGES_LOCK"
+    site_packages_local_plugin_clashes "$SITE_PACKAGES_LOCK" "${SITE_LOCAL_PLUGINS[@]}")"
   [[ -z "$problems" ]] && return 0
-  log "site-packages/composer.lock downloads from outside WordPress.org:"
+  log "site-packages/composer.lock has plugins the tools do not trust or cannot install:"
   printf '%s\n' "$problems" | sed 's/^/    /' >&2
   return 1
 }
@@ -284,7 +287,7 @@ run_dependency_checks() {
   run_check "Composer security audit" in_composer_of "$PROJECT_DIR" composer audit --no-interaction
   run_check "Site packages: lock file matches composer.json" in_site_packages composer validate --strict --no-check-all --no-check-publish
   run_check "Site packages: security audit" in_site_packages composer audit --locked --no-interaction
-  run_check "Site packages: downloads come from WordPress.org" site_packages_downloads_from_wordpress_org
+  run_check "Site packages: every download from its trusted source" site_packages_downloads_trusted
   # The tools' packages run on this computer for this site, so the site's weekly run catches an
   # advisory published for the release it uses.
   run_check "npm security audit (browser tests)" npm_audit tests/e2e

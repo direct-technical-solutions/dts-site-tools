@@ -1,0 +1,11 @@
+{
+  "description": "DTS's plugin pinned at its release commit, but the lock file's download is another commit's archive: refused before the build, naming the package, nothing copied.",
+  "place": "staging",
+  "checks": { "{B}": [["check / check", "success"], ["check / dev-site", "success"]] },
+  "notes": { "example-staging": "{A}" },
+  "dtsPluginInB": true,
+  "dtsDistCommit": "2222222222222222222222222222222222222222",
+  "expectStatus": 1,
+  "expectOutputNaming": ["dts/example-release: downloads https://api.github.com/repos/direct-technical-solutions/dts-example-release/zipball/2222222222222222222222222222222222222222"],
+  "expectWrites": []
+}

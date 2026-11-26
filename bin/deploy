@@ -114,6 +114,8 @@ RELEASE_DIR=""
 RELEASE_THEME=""
 RELEASE_LOCAL_PLUGINS=()
 RELEASE_DOWNLOADED_PLUGINS=()
+RELEASE_WORDPRESS_ORG_PLUGINS=()
+RELEASE_DTS_PLUGINS=()
 # Server folders found empty before the copy: new on the server, to activate by hand.
 NEW_FOLDERS=()
 COPY_STARTED=false
@@ -374,9 +376,21 @@ load_release_contents() {
   mapfile -t RELEASE_LOCAL_PLUGINS < <(jq -r '.localPlugins[]' "$settings")
   lock="$(release_lock_file)"
   [[ -f "$lock" ]] || return 0
-  problems="$(site_packages_unsupported_plugins "$lock"; site_packages_download_problems "$lock")"
+  problems="$(site_packages_unsupported_plugins "$lock"; site_packages_download_problems "$lock"
+    site_packages_local_plugin_clashes "$lock" "${RELEASE_LOCAL_PLUGINS[@]}")"
   [[ -z "$problems" ]] || refuse "commit ${DEPLOY_COMMIT:0:7}'s downloaded plugins: $(paste -sd ';' <<<"$problems")"
   mapfile -t RELEASE_DOWNLOADED_PLUGINS < <(site_packages_plugin_slugs "$lock")
+  mapfile -t RELEASE_WORDPRESS_ORG_PLUGINS < <(site_packages_wordpress_org_plugin_slugs "$lock")
+  mapfile -t RELEASE_DTS_PLUGINS < <(site_packages_dts_plugin_slugs "$lock")
+}
+
+# The sources the downloaded plugins' section reads, for its header: GitHub only when the commit
+# downloads one of DTS's plugins.
+downloaded_plugin_sources() {
+  local sources="git, Composer"
+  ((${#RELEASE_WORDPRESS_ORG_PLUGINS[@]} == 0)) || sources+=", WordPress.org"
+  ((${#RELEASE_DTS_PLUGINS[@]} == 0)) || sources+=", GitHub"
+  printf '%s' "$sources"
 }
 
 # The site's own code in the repository and its folder on the server, the theme last: the paths
@@ -399,7 +413,7 @@ no_comparison_reason() {
 # "<slug> <version>" for each plugin a lock file pins, sorted for join; nothing for no lock file.
 pinned_plugin_versions() {
   [[ -s "$1" ]] || return 0
-  jq -r '.packages[]? | select(.type == "wordpress-plugin") | "\(.name | sub("^.*/"; "")) \(.version)"' "$1" | LC_ALL=C sort
+  jq -r '.packages[]? | select(.type == "wordpress-plugin") | "\(.name | sub("^.*/"; "")) \(.version | sub("^v"; ""))"' "$1" | LC_ALL=C sort
 }
 
 # The plugins whose pin differs between two lock files, on one line. A plugin taken out of the
@@ -442,27 +456,52 @@ require_known_allowed_lower() {
 }
 
 # Composer in its pinned container, on the exported commit's site-packages/ alone, as bin/dev-site
-# builds it: composer.json and composer.lock read-only, so the build follows the pins exactly.
+# builds it: composer.json and composer.lock read-only, so the build follows the pins exactly;
+# COMPOSER_AUTH passed on only when set, as bin/dev-site does (GitHub's API limit, template plan T25).
 build_downloaded_plugins() {
   ((${#RELEASE_DOWNLOADED_PLUGINS[@]} > 0)) || return 0
   local packages="$RELEASE_DIR/site-packages"
   docker run --rm -w /app -v "$packages:/app" \
     -v "$packages/composer.json:/app/composer.json:ro" -v "$packages/composer.lock:/app/composer.lock:ro" \
-    -v "$COMPOSER_CACHE_VOLUME:/tmp/composer-cache" -e COMPOSER_CACHE_DIR=/tmp/composer-cache \
+    -v "$COMPOSER_CACHE_VOLUME:/tmp/composer-cache" -e COMPOSER_CACHE_DIR=/tmp/composer-cache -e COMPOSER_AUTH \
     "$COMPOSER_IMAGE" composer install --no-interaction --no-progress >"$WORK_DIR/composer.log" 2>&1 ||
     refuse "Composer could not build the downloaded plugins: $(tail -n 5 "$WORK_DIR/composer.log" | paste -sd ' ')"
 }
 
 downloaded_plugin_dir() { printf '%s/site-packages/wp-content/plugins/%s' "$RELEASE_DIR" "$1"; }
 
-# Every file of each downloaded plugin as WordPress.org published it: nothing missing, changed or
-# added. The lock file holds no fingerprint for these zips, so this is what proves them; it runs
-# on every deploy, since the fresh build is what rsync compares the server with and copies. The
-# plugins that match in full share one line.
+# Each downloaded plugin proven on every deploy, since the fresh build is what rsync compares the
+# server with and copies: WordPress.org's by their checksums, DTS's by their release commit.
 verify_downloaded_plugins() {
-  local plugin_slug version checksums problems matching=() joined
+  local plugin_slug
   ((${#RELEASE_DOWNLOADED_PLUGINS[@]} > 0)) || { line "none: the commit pins no downloaded plugin"; return 0; }
   for plugin_slug in "${RELEASE_DOWNLOADED_PLUGINS[@]}"; do
+    [[ -d "$(downloaded_plugin_dir "$plugin_slug")" ]] || refuse "the build made no folder for $plugin_slug"
+  done
+  verify_wordpress_org_plugins
+  for plugin_slug in "${RELEASE_DTS_PLUGINS[@]}"; do
+    verify_dts_plugin "$plugin_slug"
+  done
+}
+
+# A DTS plugin: the lock file's commit, already held to its repository's address on GitHub
+# (load_release_contents), and the download's header naming the pinned version. GitHub publishes
+# no checksums for its archives (template plan T25), so the line names what the proof rests on.
+verify_dts_plugin() {
+  local plugin_slug="$1" version commit problem
+  version="$(site_packages_pinned_version "$(release_lock_file)" "$plugin_slug")"
+  commit="$(site_packages_release_commit "$(release_lock_file)" "$plugin_slug")"
+  problem="$(site_packages_header_version_problem "$(release_lock_file)" "$(downloaded_plugin_dir "$plugin_slug")" "$plugin_slug")"
+  [[ -z "$problem" ]] || refuse "$problem"
+  line "$plugin_slug $version: GitHub's archive of $DTS_GITHUB_OWNER/dts-$plugin_slug at the release commit ${commit:0:7}, as composer.lock records; its header says $version"
+}
+
+# Every file of each WordPress.org plugin as WordPress.org published it: nothing missing, changed
+# or added. The lock file holds no fingerprint for these zips, so this is what proves them. The
+# plugins that match in full share one line.
+verify_wordpress_org_plugins() {
+  local plugin_slug version checksums problems matching=() joined
+  for plugin_slug in "${RELEASE_WORDPRESS_ORG_PLUGINS[@]}"; do
     version="$(site_packages_pinned_version "$(release_lock_file)" "$plugin_slug")"
     [[ -d "$(downloaded_plugin_dir "$plugin_slug")" ]] || refuse "the build made no folder for $plugin_slug"
     checksums="$WORK_DIR/$plugin_slug.checksums.json"
@@ -776,7 +815,7 @@ prepare_deploy() {
   export_release
   load_release_contents
   require_known_allowed_lower
-  section "The downloaded plugins (git, Composer, WordPress.org)"
+  section "The downloaded plugins ($(downloaded_plugin_sources))"
   show_pin_changes
   build_downloaded_plugins
   verify_downloaded_plugins

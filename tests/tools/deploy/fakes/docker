@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Stand-in for docker in bin/deploy's tests (tests/tools/deploy/run.sh): answers only the
 # Composer build of the downloaded plugins, "docker run ... -v <site-packages>:/app ...
-# composer:<version> composer install ...", by writing each WordPress.org plugin of that folder's
-# composer.lock as fakes/plugin-files.sh describes it, at the pinned version, where Composer would
+# composer:<version> composer install ...", by writing each plugin of that folder's composer.lock
+# (WordPress.org's and DTS's) as fakes/plugin-files.sh describes it, at the pinned version, where Composer would
 # put it. The situation (situation.json in FAKE_SERVICES_DIR) may make the build fail, or tamper
 # with the built files afterwards ("changed", "added", "removed"). Nothing goes over the network.
 set -Euo pipefail
@@ -24,9 +24,13 @@ done
 [[ -d "$packages_dir" ]] || { echo "fake docker: no site-packages folder mounted at /app" >&2; exit 2; }
 jq -e '.buildFails // false' "$SITUATION" >/dev/null && { echo "Your requirements could not be resolved" >&2; exit 2; }
 
-while IFS=$'\t' read -r plugin_slug version; do
-  write_plugin_files "$packages_dir/wp-content/plugins/$plugin_slug" "$plugin_slug" "$version"
-done < <(jq -r '.packages[] | select(.type == "wordpress-plugin") | "\(.name | sub("^.*/"; ""))\t\(.version)"' "$packages_dir/composer.lock")
+# A DTS plugin's tag "v2.0.0" is version 2.0.0 in its header, unless the situation plants another
+# (dtsHeaderVersion).
+header_override="$(jq -r '.dtsHeaderVersion // empty' "$SITUATION")"
+while IFS=$'\t' read -r name version; do
+  [[ "$name" != dts/* || -z "$header_override" ]] || version="$header_override"
+  write_plugin_files "$packages_dir/wp-content/plugins/${name##*/}" "${name##*/}" "$version"
+done < <(jq -r '.packages[] | select(.type == "wordpress-plugin") | "\(.name)\t\(.version | sub("^v"; ""))"' "$packages_dir/composer.lock")
 
 built="$packages_dir/wp-content/plugins/example-download"
 case "$(jq -r '.tamperDownloaded // empty' "$SITUATION")" in

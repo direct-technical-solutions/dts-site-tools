@@ -32,7 +32,10 @@
 # serverExtraFiles ({"<short name>/<folder>/<file>": text}, put there by hand);
 # phpLogExtraFile; noPageCheckLogin; lockHeld (another deploy holding the lock); pageCheckFails,
 # pageCheckAddsLogLines, logStartsAnew (played by the stand-in page check); pinnedInA ({slug:
-# version}, what commit A's composer.lock pins instead of example-download 1.1.0);
+# version}, what commit A's composer.lock pins instead of example-download 1.1.0); dtsPluginInB
+# (commit B's lock also pins DTS's example-release v2.0.0 from its GitHub repository),
+# dtsDistCommit (its download another commit's archive), dtsHeaderVersion (the version its built
+# main file names), dtsServerVersion ({short name: version} of example-release there);
 # expectStatus; expectOutputNaming; expectOutputLacking; expectOutputInOrder (texts on ever later
 # lines of the output); expectPageCheck ("<address>\tuser=<user>\t
 # password=<password>", as the stand-in records it); expectNoPageCheck; expectWrites (every copy, in order, "<short name>::<folder>",
@@ -48,6 +51,10 @@ readonly VALID_SITE_SETTINGS="$TOOLS_DIR/tests/tools/site-settings/valid.json"
 readonly DOWNLOADED_PLUGIN="example-download"
 readonly PINNED_VERSION="1.1.0"
 readonly SERVER_FOLDERS=(example-download example-plugin example-child deploy-note php-log)
+# DTS's own downloaded plugin, in commit B only when a situation says so (dtsPluginInB).
+readonly DTS_PLUGIN="example-release"
+readonly DTS_VERSION="2.0.0"
+readonly DTS_RELEASE_COMMIT="1111111111111111111111111111111111111111"
 readonly PHP_LOG_FILE="error_log_example"
 readonly OLD_LOG_LINE="[01-Jan-2026 00:00:00 UTC] an old line"
 SCENARIOS_DIR="$HERE/scenarios"
@@ -78,6 +85,7 @@ make_repository() {
   printf 'a change\n' >"$work/repo/change.txt"
   printf '/* B */\n' >>"$work/repo/themes/example-child/style.css"
   write_lock_file "$work/repo" "{\"$DOWNLOADED_PLUGIN\": \"$PINNED_VERSION\"}"
+  jq -e '.dtsPluginInB // false' "$scenario" >/dev/null && add_dts_plugin_to_lock "$work/repo" "$scenario"
   in_git -C "$work/repo" add -A && in_git -C "$work/repo" commit -qm "B: a change"
   in_git -C "$work/repo" remote add origin "$work/origin.git"
   in_git -C "$work/repo" push -q origin main
@@ -101,6 +109,19 @@ write_lock_file() {
   jq -n --argjson pins "$pins" '{packages: [$pins | to_entries[] | {
     name: "wpackagist-plugin/\(.key)", version: .value, type: "wordpress-plugin",
     dist: {type: "zip", url: "https://downloads.wordpress.org/plugin/\(.key).\(.value).zip"}}]}' >"$repo/site-packages/composer.lock"
+}
+
+# dtsPluginInB: commit B's lock also pins DTS's example-release at its tag, as Composer records a
+# release from its GitHub repository (template plan T25); dtsDistCommit makes the download another
+# commit's archive than the release's.
+add_dts_plugin_to_lock() {
+  local repo="$1" scenario="$2" lock="$1/site-packages/composer.lock" dist_commit
+  dist_commit="$(jq -r --arg commit "$DTS_RELEASE_COMMIT" '.dtsDistCommit // $commit' "$scenario")"
+  jq --arg slug "$DTS_PLUGIN" --arg version "v$DTS_VERSION" --arg commit "$DTS_RELEASE_COMMIT" --arg dist "$dist_commit" '
+    .packages += [{name: "dts/\($slug)", version: $version, type: "wordpress-plugin",
+      source: {type: "git", url: "https://github.com/direct-technical-solutions/dts-\($slug).git", reference: $commit},
+      dist: {type: "zip", url: "https://api.github.com/repos/direct-technical-solutions/dts-\($slug)/zipball/\($dist)", reference: $dist, shasum: ""}}]' \
+    "$lock" >"$lock.new" && mv "$lock.new" "$lock"
 }
 
 site_settings_for() {
@@ -167,7 +188,18 @@ write_server_folders() {
     version="$(jq -r --arg host "$ssh_host" '.serverPluginVersion[$host] // "1.0.0"' "$situation")"
     [[ -z "$version" || ! -d "$server/$ssh_host/$DOWNLOADED_PLUGIN" ]] ||
       write_plugin_files "$server/$ssh_host/$DOWNLOADED_PLUGIN" "$DOWNLOADED_PLUGIN" "$version"
+    write_dts_server_folder "$situation" "$server/$ssh_host" "$ssh_host"
   done
+}
+
+# The DTS plugin's folder on a server, made for its key when commit B pins it: empty (new there)
+# unless dtsServerVersion ({short name: version}) puts that version's files in it.
+write_dts_server_folder() {
+  local situation="$1" host_dir="$2" ssh_host="$3" version
+  jq -e '.dtsPluginInB // false' "$situation" >/dev/null || return 0
+  mkdir -p "$host_dir/$DTS_PLUGIN"
+  version="$(jq -r --arg host "$ssh_host" '.dtsServerVersion[$host] // empty' "$situation")"
+  [[ -z "$version" ]] || write_plugin_files "$host_dir/$DTS_PLUGIN" "$DTS_PLUGIN" "$version"
 }
 
 # serverHolds: the site's own folders on a stand-in server hold exactly that commit's files, as

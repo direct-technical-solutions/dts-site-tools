@@ -38,6 +38,7 @@ DEV_SITE_TITLE=""
 # The site's own plugins come from site.json, its downloaded ones from site-packages/composer.lock.
 LOCAL_PLUGINS=()
 WORDPRESS_ORG_PLUGINS=()
+DTS_PLUGINS=()
 TEST_PAGES=()
 
 log() { printf '%s [dev-site] %s\n' "$(date +%H:%M:%S)" "$*" >&2; }
@@ -90,16 +91,18 @@ load_site_settings() {
   CHILD_THEME="$(site_setting .theme)"
   DEV_SITE_TITLE="$(site_setting .devSiteTitle)"
   mapfile -t LOCAL_PLUGINS < <(site_settings_query '.localPlugins[]')
-  mapfile -t WORDPRESS_ORG_PLUGINS < <(site_packages_plugin_slugs "$SITE_PACKAGES_LOCK")
+  mapfile -t WORDPRESS_ORG_PLUGINS < <(site_packages_wordpress_org_plugin_slugs "$SITE_PACKAGES_LOCK")
+  mapfile -t DTS_PLUGINS < <(site_packages_dts_plugin_slugs "$SITE_PACKAGES_LOCK")
   mapfile -t TEST_PAGES < <(site_settings_query '.testPages[]
     | [.title, .address, (.pageTemplate // ""), (.isFrontPage // false), (.isPrivacyPolicy // false), (if has("isInMenu") then .isInMenu else true end)]
     | map(tostring) | join("\u001f")')
-  readonly CHILD_THEME DEV_SITE_TITLE LOCAL_PLUGINS WORDPRESS_ORG_PLUGINS TEST_PAGES
+  readonly CHILD_THEME DEV_SITE_TITLE LOCAL_PLUGINS WORDPRESS_ORG_PLUGINS DTS_PLUGINS TEST_PAGES
   assemble_layer_theme
   refuse_if_any "$(site_settings_theme_problem "$SITE_SETTINGS_FILE" "$SITE_THEMES_DIR")"
   refuse_if_any "$(site_settings_missing_local_plugins "$SITE_SETTINGS_FILE" "$PROJECT_DIR/plugins")"
   refuse_if_any "$(site_packages_unsupported_plugins "$SITE_PACKAGES_LOCK")"
   refuse_if_any "$(site_packages_download_problems "$SITE_PACKAGES_LOCK")"
+  refuse_if_any "$(site_packages_local_plugin_clashes "$SITE_PACKAGES_LOCK" "${LOCAL_PLUGINS[@]}")"
   refuse_if_any "$(site_settings_missing_test_pages "$SITE_SETTINGS_FILE" "$SITE_DEV_CONTENT_DIR")"
   refuse_if_any "$(test_pages_taking_example_addresses)"
   refuse_if_any "$(site_packages_booking_form_problem "$BOOKING_FORM_FILE" "$SITE_PACKAGES_LOCK")"
@@ -141,7 +144,7 @@ test_pages_taking_example_addresses() {
 
 site_has_plugin() {
   local wanted_slug="$1" plugin_slug
-  for plugin_slug in "${LOCAL_PLUGINS[@]}" "${WORDPRESS_ORG_PLUGINS[@]}"; do
+  for plugin_slug in "${LOCAL_PLUGINS[@]}" "${WORDPRESS_ORG_PLUGINS[@]}" "${DTS_PLUGINS[@]}"; do
     [[ "$plugin_slug" == "$wanted_slug" ]] && return 0
   done
   return 1
@@ -222,31 +225,44 @@ configure_site() {
 
 # Composer for site-packages/, in its pinned container, which sees only that folder: composer.json
 # and composer.lock read-only, so a build never changes the pinned versions; the installed
-# plugins and Composer's own files writable.
+# plugins and Composer's own files writable. COMPOSER_AUTH is passed on only when set (on GitHub,
+# the run's read-only token): DTS's plugins download from GitHub's API, which allows 60 requests
+# an hour without one (template plan T25). Docker passes an unset variable as nothing.
 in_site_packages() {
   docker run --rm -w /app \
     -v "$SITE_PACKAGES_DIR:/app" \
     -v "$SITE_PACKAGES_DIR/composer.json:/app/composer.json:ro" \
     -v "$SITE_PACKAGES_LOCK:/app/composer.lock:ro" \
     -v "$COMPOSER_CACHE_VOLUME:/tmp/composer-cache" -e COMPOSER_CACHE_DIR=/tmp/composer-cache \
+    -e COMPOSER_AUTH \
     "$COMPOSER_IMAGE" "$@"
 }
 
 # The downloaded plugins at the versions site-packages/composer.lock pins, each copied into the
-# dev site, activated and checked against WordPress.org's checksums before the build goes on:
-# the lock file holds no fingerprint for them, so this check is what proves the files are
-# WordPress.org's (template plan T8).
+# dev site and activated, and each proven before the build goes on: a WordPress.org plugin
+# against WordPress.org's checksums, since the lock file holds no fingerprint for it (template
+# plan T8); a DTS plugin by its release commit, checked in the lock before the build
+# (site_packages_dts_download_problems), and by its header's version, which must be the pin's.
 install_site_packages() {
-  local plugin_slug
-  log "Installing the downloaded plugins from site-packages/composer.lock: ${WORDPRESS_ORG_PLUGINS[*]:-none}"
+  local plugin_slug downloaded_plugins=("${WORDPRESS_ORG_PLUGINS[@]}" "${DTS_PLUGINS[@]}")
+  log "Installing the downloaded plugins from site-packages/composer.lock: ${downloaded_plugins[*]:-none}"
   rm -rf "$SITE_PACKAGES_DIR/wp-content"
   in_site_packages composer install --no-interaction --no-progress
   for plugin_slug in "${WORDPRESS_ORG_PLUGINS[@]}"; do
-    compose cp "$SITE_PACKAGES_PLUGINS_DIR/$plugin_slug" "wordpress:/var/www/html/wp-content/plugins/$plugin_slug"
-    compose exec -T wordpress chown -R www-data:www-data "/var/www/html/wp-content/plugins/$plugin_slug"
-    wp_cli plugin activate "$plugin_slug"
+    install_downloaded_plugin "$plugin_slug"
     wp_cli plugin verify-checksums "$plugin_slug"
   done
+  for plugin_slug in "${DTS_PLUGINS[@]}"; do
+    refuse_if_any "$(site_packages_header_version_problem "$SITE_PACKAGES_LOCK" "$SITE_PACKAGES_PLUGINS_DIR/$plugin_slug" "$plugin_slug")"
+    install_downloaded_plugin "$plugin_slug"
+  done
+}
+
+install_downloaded_plugin() {
+  local plugin_slug="$1"
+  compose cp "$SITE_PACKAGES_PLUGINS_DIR/$plugin_slug" "wordpress:/var/www/html/wp-content/plugins/$plugin_slug"
+  compose exec -T wordpress chown -R www-data:www-data "/var/www/html/wp-content/plugins/$plugin_slug"
+  wp_cli plugin activate "$plugin_slug"
 }
 
 # The booking form as the real sites have it, from its files in config/, with stand-in Turnstile
