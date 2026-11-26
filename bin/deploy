@@ -8,7 +8,7 @@
 # is copied, it refuses unless the
 # working copy is clean, the commit is on GitHub's main and its required checks passed, either on
 # the commit itself (the weekly run, the button) or on its merged pull request's last commit with
-# exactly the same files (a rebase merge gives the commit a new name, so no check ran on it); where
+# exactly the same files (a squash or rebase merge makes a new commit, so no check ran on it); where
 # the site has staging, live accepts only the commit staging runs. It reads which commit the place
 # runs from the note on the server and shows the commits between that one and the new one.
 #

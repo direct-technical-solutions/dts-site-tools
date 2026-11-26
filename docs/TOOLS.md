@@ -176,7 +176,8 @@ the other site's `SITE_DIR`. `bin/check` always checks this repository; `bin/dep
   download addresses (all on `downloads.wordpress.org`, which `bin/check` and `bin/dev-site`
   require). Separate from the top-level `composer.json`, which holds only the code-checking tools.
   Dependabot proposes the plugins' updates weekly, a release at least 7 days old, in one pull
-  request (`.github/dependabot.yml`), which merges itself by rebase once its checks pass
+  request (`.github/dependabot.yml`), which merges itself by squash, keeping Dependabot's own
+  commit message, once its checks pass
   (`.github/workflows/plugin-updates.yml`, template plan T9: only Dependabot's pull requests into
   `main` changing nothing but `site-packages/`, and in its lock file nothing but WordPress.org
   plugins; it runs `main`'s own code, never the pull request's). Updates to
@@ -272,11 +273,14 @@ the other site's `SITE_DIR`. `bin/check` always checks this repository; `bin/dep
   since the baseline, with marked images in `screenshots/` (ignored by git). Outside services
   are answered locally; a page that does not answer 200 fails. Whether a change looks right is
   the user's call.
-- `bin/tools-update`: the deliberate way to update the tools, `composer.lock`,
-  `tests/e2e/package-lock.json`, `tools/css-lint/package-lock.json` and
-  `tools/js-check/package-lock.json` (npm only from releases
-  at least 7 days old, install scripts off); then `bin/check`, review the lock files' diff,
-  commit.
+- `bin/tools-update`, in the tools' own repository only (never installed into a site, and
+  refused in an installed copy): the deliberate way to update the tools' lock files,
+  `composer.lock`, `tests/e2e/package-lock.json`, `tools/css-lint/package-lock.json` and
+  `tools/js-check/package-lock.json`, each worked out in a temporary copy (npm only from
+  releases at least 7 days old, install scripts off). For the updates Dependabot is told to
+  leave alone: Playwright (raised together with its image in `tools/versions.sh`) and the
+  versions held back on purpose, each raised in its manifest first. Then the self-check
+  (`tests/tools/check-tools.sh`), the lock files' diff reviewed line by line, commit.
 - `bin/tools-pin` (template plan 2.1c, T22): writes the site's `.github/workflows/check.yml`,
   `versions.yml` and `plugin-updates.yml` from `tools/site-workflows/`, each calling a shared
   workflow (`.github/workflows/site-*.yml` here) pinned to the commit of the tools release the

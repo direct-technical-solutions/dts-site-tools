@@ -1,56 +1,83 @@
 #!/usr/bin/env bash
-# Updates the development tools to the newest versions composer.json allows, and writes the
-# new composer.lock (plan step 3d). bin/check never changes the lock file; this script is the
-# deliberate way to. Afterwards: run bin/check, review the lock file's diff, commit both.
+# Updates the tools' own pinned packages to the newest versions their manifests allow, and writes
+# the new lock files: composer.lock (the PHP checkers every site gets) and the npm lock files of
+# tests/e2e, tools/css-lint and tools/js-check. A check never changes a lock file; this script is
+# the deliberate way to. Afterwards: run the self-check (tests/tools/check-tools.sh), review the
+# lock files' diff line by line (template plan T9), commit.
 #
-# Composer works in a temporary folder holding only copies of composer.json and composer.lock,
-# so the third-party code it runs never sees the rest of the project (.env, db/, backups/).
+# Dependabot proposes most of these updates by itself; this script is for the ones it is told to
+# leave alone (.github/dependabot.yml): Playwright, whose package moves together with its image in
+# tools/versions.sh, and the versions held back on purpose (TypeScript's minors, the WordPress
+# stubs' minors, PHP_CodeSniffer's major), each raised in its manifest first.
+#
+# It works only in the tools' own repository, never in a site: it is not one of the commands
+# Composer installs into a site (composer.json's "bin"), and in a site's vendor/ it would rewrite an
+# installed copy nobody commits. So it needs no site and reads no site.json (tools/paths.sh would
+# refuse here, rightly, since the tools' repository is not a site).
+#
+# Safeguards (rebuild plan 3d, 3e): Composer and npm each work in a temporary folder holding only
+# copies of the manifest and its lock file, so the third-party code they run never sees the rest of
+# the repository; npm runs no install scripts and takes only releases at least NPM_COOLDOWN_DAYS
+# old, transitive ones included, the same wait Dependabot keeps.
 set -Eeuo pipefail
 
 TOOLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly TOOLS_DIR
-# shellcheck source=tools/paths.sh
-source "$TOOLS_DIR/tools/paths.sh"
-# The same images as bin/check and bin/test, so npm resolves with the Node that runs the tests.
+# The same images as the self-check and bin/test, so npm resolves with the Node that runs the tests.
 # shellcheck source=tools/versions.sh
 source "$TOOLS_DIR/tools/versions.sh"
-# shellcheck source=tools/site-settings.sh
-source "$TOOLS_DIR/tools/site-settings.sh"
+
+# The self-check's own cache volumes (tests/tools/check-tools.sh), so both reuse one download cache.
+readonly COMPOSER_CACHE_VOLUME="site-tools_composer_cache"
+readonly NPM_CACHE_VOLUME="site-tools_npm_cache"
+# Hijacked releases are usually pulled within days; waiting a week means a release is only taken
+# once it has survived that.
+readonly NPM_COOLDOWN_DAYS=7
+readonly NPM_PACKAGE_DIRS=(tests/e2e tools/css-lint tools/js-check)
 
 log() { printf '%s [tools-update] %s\n' "$(date +%H:%M:%S)" "$*" >&2; }
 trap 'log "ERROR: failed in ${FUNCNAME[*]:-main} (line $LINENO): $BASH_COMMAND"' ERR
+
+# A git clone (or worktree, whose .git is a file) is the tools' own repository; an installed copy
+# in a site's vendor/ is not, and is refused before anything is written.
+require_tools_repository() {
+  [[ -e "$TOOLS_DIR/.git" ]] && return 0
+  log "refusing: $TOOLS_DIR is not the tools' own repository (no .git); update the tools there, not in an installed copy"
+  return 1
+}
 
 WORK_DIR="$(mktemp -d)"
 readonly WORK_DIR
 trap 'rm -rf "$WORK_DIR"' EXIT
 
-copy_composer_files_in() {
-  cp "$PROJECT_DIR/composer.json" "$WORK_DIR/"
-  [[ -f "$PROJECT_DIR/composer.lock" ]] && cp "$PROJECT_DIR/composer.lock" "$WORK_DIR/"
-  mkdir -p "$PROJECT_DIR/vendor"
+# Copies a manifest and, when there is one, its lock file into a temporary folder.
+copy_manifest_in() {
+  local source_dir="$1" target_dir="$2" manifest="$3" lock_file="$4"
+  mkdir -p "$target_dir"
+  cp "$source_dir/$manifest" "$target_dir/"
+  if [[ -f "$source_dir/$lock_file" ]]; then
+    cp "$source_dir/$lock_file" "$target_dir/"
+  fi
 }
 
-run_update() {
+update_composer_lock() {
+  local composer_dir="$WORK_DIR/composer"
+  copy_manifest_in "$TOOLS_DIR" "$composer_dir" composer.json composer.lock
+  mkdir -p "$TOOLS_DIR/vendor"
   docker run --rm -w /app \
-    -v "$WORK_DIR:/app" \
-    -v "$PROJECT_DIR/vendor:/app/vendor" \
+    -v "$composer_dir:/app" \
+    -v "$TOOLS_DIR/vendor:/app/vendor" \
     -v "$COMPOSER_CACHE_VOLUME:/tmp/composer-cache" -e COMPOSER_CACHE_DIR=/tmp/composer-cache \
     "$COMPOSER_IMAGE" composer update --no-interaction --no-progress
+  cp "$composer_dir/composer.lock" "$TOOLS_DIR/composer.lock"
 }
 
-# One npm package's lock file (tests/e2e, tools/css-lint, tools/js-check): only the lock file is written, in a
-# temporary folder holding copies of package.json and package-lock.json; node_modules is
-# installed by bin/check and bin/test. Only releases at least NPM_COOLDOWN_DAYS old are used,
-# transitive ones included, the same wait Dependabot keeps (hijacked releases are usually pulled
-# within days).
-readonly NPM_COOLDOWN_DAYS=7
+# Only the lock file is written; node_modules is installed by the self-check and bin/test.
 update_npm_lock() {
   local package_dir="$1" npm_dir released_before
   npm_dir="$WORK_DIR/npm-${package_dir//\//-}"
   released_before="$(date -u -d "$NPM_COOLDOWN_DAYS days ago" +%Y-%m-%dT%H:%M:%SZ)"
-  mkdir -p "$npm_dir"
-  cp "$TOOLS_DIR/$package_dir/package.json" "$npm_dir/"
-  [[ -f "$TOOLS_DIR/$package_dir/package-lock.json" ]] && cp "$TOOLS_DIR/$package_dir/package-lock.json" "$npm_dir/"
+  copy_manifest_in "$TOOLS_DIR/$package_dir" "$npm_dir" package.json package-lock.json
   docker run --rm -w /npm -v "$npm_dir:/npm" -v "$NPM_CACHE_VOLUME:/root/.npm" \
     "$PLAYWRIGHT_IMAGE" npm install --package-lock-only --ignore-scripts --no-audit --no-fund \
     --loglevel=error --before="$released_before"
@@ -58,18 +85,15 @@ update_npm_lock() {
 }
 
 main() {
-  load_site_volume_names || exit 1
-  copy_composer_files_in
-  log "Updating the tools within the limits in composer.json"
-  run_update
-  cp "$WORK_DIR/composer.lock" "$PROJECT_DIR/composer.lock"
-  log "Updating the browser-test packages within the limits in tests/e2e/package.json"
-  update_npm_lock tests/e2e
-  log "Updating the CSS linter's packages within the limits in tools/css-lint/package.json"
-  update_npm_lock tools/css-lint
-  log "Updating the scripts' checker's packages within the limits in tools/js-check/package.json"
-  update_npm_lock tools/js-check
-  log "Done. Next: bin/check, then review 'git diff composer.lock tests/e2e/package-lock.json tools/css-lint/package-lock.json tools/js-check/package-lock.json' and commit."
+  require_tools_repository || exit 1
+  log "Updating the PHP checkers within the limits in composer.json"
+  update_composer_lock
+  local package_dir
+  for package_dir in "${NPM_PACKAGE_DIRS[@]}"; do
+    log "Updating the packages within the limits in $package_dir/package.json"
+    update_npm_lock "$package_dir"
+  done
+  log "Done. Next: tests/tools/check-tools.sh, then review 'git diff composer.lock $(printf '%s/package-lock.json ' "${NPM_PACKAGE_DIRS[@]}")' line by line, and commit."
 }
 
 main "$@"

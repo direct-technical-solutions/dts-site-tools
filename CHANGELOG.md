@@ -21,6 +21,21 @@ change how a site calls the tools.
   still lists anything.
 - The tested-commit line says the pull request was merged by squash or rebase, and that the
   merge made a new commit with the same files as its tested last commit.
+- `site-plugin-updates.yml` merges Dependabot's plugin updates by squash (it rebased), passing
+  Dependabot's own commit message and binding the merge to the head commit it checked; a pull
+  request with more than one commit waits for review. **A site switching to this release must
+  allow squash merges** in its repository's settings, or its plugin updates stop merging
+  themselves.
+- The README names the trap in a site that once committed its own `bin/`, and its fix.
+
+### Fixed
+
+- `bin/tools-update` runs in the tools' own repository again: it looked for a site's
+  `site.json` and refused there. It now works on the tools' folder alone, refuses an installed
+  copy (no `.git`), and shares the self-check's caches; its safeguards are unchanged. The
+  self-check tests it with a stand-in Docker.
+- `bin/check`'s message for a missing `composer.lock` no longer sends a site to
+  `bin/tools-update`, which a site does not have.
 
 ## [0.2.0] - 2026-11-24
 
