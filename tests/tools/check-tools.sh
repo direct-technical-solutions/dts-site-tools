@@ -224,6 +224,22 @@ dts_plugin_refusals_refuse_bad_examples() {
     "$(site_packages_header_version_problem "$examples/lock-with-dts-other-version.json" "$download" example-release)" || failed=1
   expect_acceptance "lock-with-dts-plugin.json" \
     "$(site_packages_unsupported_plugins "$good")$(site_packages_download_problems "$good")$(site_packages_local_plugin_clashes "$good" other-plugin)$(site_packages_header_version_problem "$good" "$download" example-release)" || failed=1
+  dts_shared_code_refusals_refuse_bad_examples || failed=1
+  return "$failed"
+}
+
+# A downloaded DTS plugin is checked by the site against its own names, and for the header that
+# keeps WordPress.org from updating it (template plan T26): a release naming the site, matched
+# whatever its case, and one without the header are refused, naming the plugin; the plain one is
+# accepted.
+dts_shared_code_refusals_refuse_bad_examples() {
+  local names="$DEV_SITE_EXAMPLES_DIR/shared-code-names.json" downloads="$DEV_SITE_EXAMPLES_DIR/downloads" failed=0
+  expect_refusal "downloads/names-a-site" "names-a-site" \
+    "$(site_packages_dts_shared_code_problems "$names" "$downloads/names-a-site" names-a-site)" || failed=1
+  expect_refusal "downloads/updatable" "updatable" \
+    "$(site_packages_dts_shared_code_problems "$names" "$downloads/updatable" updatable)" || failed=1
+  expect_acceptance "downloads/example-release" \
+    "$(site_packages_dts_shared_code_problems "$names" "$downloads/example-release" example-release)" || failed=1
   return "$failed"
 }
 
@@ -257,7 +273,7 @@ playwright_versions_match() {
 # names the Composer image tools/versions.sh pins, so raising it there cannot leave one behind.
 install_commands_use_pinned_composer() {
   local stale
-  stale="$(grep -nE 'composer:[0-9]' "$TOOLS_DIR"/.github/workflows/site-*.yml "$TOOLS_DIR/README.md" |
+  stale="$(grep -nE 'composer:[0-9]' "$TOOLS_DIR"/.github/workflows/site-*.yml "$TOOLS_DIR/.github/workflows/plugin-check.yml" "$TOOLS_DIR/README.md" |
     grep -vF "$COMPOSER_IMAGE composer install" || true)"
   [[ -z "$stale" ]] && return 0
   log "install commands not on tools/versions.sh's $COMPOSER_IMAGE:"
@@ -283,25 +299,35 @@ actionlint_tools_workflows() {
   return "$status"
 }
 
-# The tools' workflows, beside the callers (named site-caller-*.yml) written with a stand-in commit
-# whose GitHub address is then replaced by the local path; fails, naming the caller, if one is left
-# calling an address, since actionlint would then pass it without checking it.
+# The tools' workflows, beside the callers (named site-caller-*.yml and plugin-caller-*.yml)
+# written with a stand-in commit whose GitHub address is then replaced by the local path; fails,
+# naming the caller, if one is left calling an address, since actionlint would then pass it
+# without checking it.
 write_workflows_with_local_callers() {
   local work="$1" caller left_calling_address
-  mkdir -p "$work/.git" "$work/.github/workflows" "$work/callers"
+  mkdir -p "$work/.git" "$work/.github/workflows"
   cp "$TOOLS_DIR"/.github/workflows/*.yml "$work/.github/workflows/"
-  tools_pin_write "$work/callers" 0123456789abcdef0123456789abcdef01234567 v0.0.0
-  for caller in "$work"/callers/*.yml; do
-    sed -E 's#uses: direct-technical-solutions/dts-site-tools/(\.github/workflows/[a-z-]+\.yml)@[0-9a-f]{40} \# .*$#uses: ./\1#' \
-      "$caller" >"$work/.github/workflows/site-caller-$(basename "$caller")"
-  done
-  rm -r "$work/callers"
+  write_local_callers "$work" site "$SITE_WORKFLOW_TEMPLATES_DIR"
+  write_local_callers "$work" plugin "$PLUGIN_WORKFLOW_TEMPLATES_DIR"
   # mktemp's folder is private; actionlint's image runs as a user of its own, which must read it.
   chmod -R a+rX "$work"
-  left_calling_address="$(grep -l 'uses: direct-technical-solutions/' "$work"/.github/workflows/site-caller-*.yml || true)"
+  left_calling_address="$(grep -l 'uses: direct-technical-solutions/' "$work"/.github/workflows/*-caller-*.yml || true)"
   [[ -z "$left_calling_address" ]] && return 0
   log "callers still calling by address, which actionlint would not check: $(xargs -n1 basename <<<"$left_calling_address" | paste -sd ' ')"
   return 1
+}
+
+# One kind of repository's callers, as bin/tools-pin writes them, each rewritten to call its
+# shared workflow by local path, as <kind>-caller-<name>.yml.
+write_local_callers() {
+  local work="$1" kind="$2" templates_dir="$3" caller
+  mkdir -p "$work/callers-$kind"
+  tools_pin_write "$templates_dir" "$work/callers-$kind" 0123456789abcdef0123456789abcdef01234567 v0.0.0
+  for caller in "$work/callers-$kind"/*.yml; do
+    sed -E 's#uses: direct-technical-solutions/dts-site-tools/(\.github/workflows/[a-z-]+\.yml)@[0-9a-f]{40} \# .*$#uses: ./\1#' \
+      "$caller" >"$work/.github/workflows/$kind-caller-$(basename "$caller")"
+  done
+  rm -r "$work/callers-$kind"
 }
 
 # The tools' own scripts: the commands, the scenario checks (in their groups' folders, template
@@ -324,7 +350,8 @@ shellcheck_tools_scripts() {
 # The versions check's alerts (template plan 1.3c), the debug log rule on sample lines (1.5b), the
 # routines' and status sheet's checks (1.5c, 1.5d-4), the page check (1.4b), bin/deploy's checks
 # (1.4d), the design-token and site-layer checks and the theme assembly (1.6b, 1.6c), the dev-site
-# guard, and how the tools find the site with the tools apart (T19).
+# guard, how the tools find the site with the tools apart (T19), and a DTS plugin's file rules and
+# bin/plugin-check's arguments (T26).
 tools_test() {
   bash "$TOOLS_DIR/tests/tools/$1/run.sh"
 }
@@ -353,7 +380,7 @@ run_rule_checks() {
   run_check "bin/dev-site's refusals refuse bad examples" dev_site_refusals_refuse_bad_examples
   run_check "Playwright versions match" playwright_versions_match
   run_check "The install commands use the pinned Composer image" install_commands_use_pinned_composer
-  run_check "GitHub workflows (actionlint): the tools' own and the site's callers" actionlint_tools_workflows
+  run_check "GitHub workflows (actionlint): the tools' own, the site's and the plugin's callers" actionlint_tools_workflows
 }
 
 run_tools_tests() {
@@ -369,6 +396,7 @@ run_tools_tests() {
   run_check "The dev-site guard on known examples" tools_test dev-site-guard
   run_check "The tools find the site with the tools apart" tools_test paths
   run_check "The workflows' pin on known examples" tools_test tools-pin
+  run_check "The plugin checks' rules on known examples" tools_test plugin-check
   run_check "The tools' lock-file update, with no site" tools_test tools-update
 }
 

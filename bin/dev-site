@@ -242,7 +242,8 @@ in_site_packages() {
 # dev site and activated, and each proven before the build goes on: a WordPress.org plugin
 # against WordPress.org's checksums, since the lock file holds no fingerprint for it (template
 # plan T8); a DTS plugin by its release commit, checked in the lock before the build
-# (site_packages_dts_download_problems), and by its header's version, which must be the pin's.
+# (site_packages_dts_download_problems), by its header's version, which must be the pin's, and by
+# the rules for shared code (site_packages_dts_shared_code_problems).
 install_site_packages() {
   local plugin_slug downloaded_plugins=("${WORDPRESS_ORG_PLUGINS[@]}" "${DTS_PLUGINS[@]}")
   log "Installing the downloaded plugins from site-packages/composer.lock: ${downloaded_plugins[*]:-none}"
@@ -254,6 +255,7 @@ install_site_packages() {
   done
   for plugin_slug in "${DTS_PLUGINS[@]}"; do
     refuse_if_any "$(site_packages_header_version_problem "$SITE_PACKAGES_LOCK" "$SITE_PACKAGES_PLUGINS_DIR/$plugin_slug" "$plugin_slug")"
+    refuse_if_any "$(site_packages_dts_shared_code_problems "$SITE_SETTINGS_FILE" "$SITE_PACKAGES_PLUGINS_DIR/$plugin_slug" "$plugin_slug")"
     install_downloaded_plugin "$plugin_slug"
   done
 }

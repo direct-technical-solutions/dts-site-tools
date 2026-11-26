@@ -38,7 +38,7 @@ copy_versions_check() {
   local root="$1"
   mkdir -p "$root/bin" "$root/tools" "$root/site-packages"
   cp "$TOOLS_DIR/bin/versions-check" "$root/bin/"
-  cp "$TOOLS_DIR/tools/paths.sh" "$TOOLS_DIR/tools/versions.sh" "$TOOLS_DIR/tools/site-packages.sh" "$root/tools/"
+  cp "$TOOLS_DIR/tools/paths.sh" "$TOOLS_DIR/tools/versions.sh" "$TOOLS_DIR/tools/site-packages.sh" "$TOOLS_DIR/tools/plugin-header.sh" "$root/tools/"
   cp "$HERE/composer.lock" "$root/site-packages/"
   # The tools beside a site.json are that site's own (tools/paths.sh); the check reads none of it.
   cp "$TOOLS_DIR/tests/tools/site-settings/valid.json" "$root/site.json"

@@ -75,7 +75,7 @@ make_repository() {
   cp "$TOOLS_DIR/bin/deploy" "$work/repo/bin/"
   # The page check, a stand-in here: bin/deploy runs the one beside it.
   cp "$HERE/fakes/site-check" "$work/repo/bin/site-check"
-  cp "$TOOLS_DIR/tools/paths.sh" "$TOOLS_DIR/tools/site-settings.sh" "$TOOLS_DIR/tools/site-settings.jq" \
+  cp "$TOOLS_DIR/tools/paths.sh" "$TOOLS_DIR/tools/site-settings.sh" "$TOOLS_DIR/tools/site-settings.jq" "$TOOLS_DIR/tools/plugin-header.sh" \
     "$TOOLS_DIR/tools/site-packages.sh" "$TOOLS_DIR/tools/versions.sh" "$work/repo/tools/"
   site_settings_for "$scenario" >"$work/repo/site.json"
   write_site_code "$work/repo"

@@ -20,6 +20,17 @@ change how a site calls the tools.
   wait for the user, as before for anything that is not a WordPress.org plugin.
 - `bin/check`, `bin/dev-site` and `bin/deploy` refuse two downloaded plugins sharing one folder,
   and a plugin both in `localPlugins` and downloaded.
+- `bin/plugin-check`, for a DTS plugin's own repository (template plan T26): Composer's
+  validation and audit, the plugin's file rules (Composer name `dts/<slug>` and type
+  `wordpress-plugin`, main file `<slug>.php` with `Update URI: false`, a plain `Version:` that
+  `CHANGELOG.md`'s newest release names), PHPCS and PHPStan with the plugin's own settings, the
+  check settings left out of the release download (`export-ignore`), actionlint and the caller's
+  pin; `--tag v<version>` also checks a tag names the header's version, before it is pushed and
+  on each tag run. The shared workflow `plugin-check.yml` runs it; a plugin calls it from the
+  `check.yml` that `bin/tools-pin` writes from `tools/plugin-workflows/`.
+- `bin/dev-site` refuses a downloaded DTS plugin that names anything in the site's
+  `namesSharedCodeMustNotUse`, or whose main file lacks `Update URI: false`: each site checks the
+  shared plugins it installs against its own names, as it checks the tools.
 
 ### Changed
 
@@ -31,6 +42,12 @@ change how a site calls the tools.
   `bin/dev-site` and `bin/deploy` pass to `site-packages/`'s Composer when set: DTS's plugins
   download from GitHub's API, which limits requests without one.
 - `bin/versions-check`'s alert for a release never proposed reads only WordPress.org's plugins.
+- `bin/tools-pin` writes a plugin's caller in a repository whose `composer.json` is of type
+  `wordpress-plugin`, and a site's three callers anywhere else, as before.
+- The plugin header helpers moved from `tools/site-packages.sh` to `tools/plugin-header.sh`, and
+  the names check's word search to `tools/site-settings.sh` (`site_settings_names_in`, given the
+  settings file); a site's own checks that called `shared_code_names_nothing_of_this_site` keep
+  working.
 
 ## [0.3.1] - 2026-11-26
 

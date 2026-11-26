@@ -1,0 +1,6 @@
+{
+    "name": "dts/example-plugin",
+    "description": "Test fixture: a DTS plugin's repository that keeps every rule.",
+    "type": "wordpress-plugin",
+    "license": "GPL-2.0-or-later"
+}

@@ -42,7 +42,8 @@ the other site's `SITE_DIR`. `bin/check` always checks this repository; `bin/dep
   by Composer from `site-packages/composer.lock` (in the pinned Composer container, which sees only
   `site-packages/`; given `COMPOSER_AUTH` when it is set), copied in and checked: WordPress.org's
   against WordPress.org's checksums, DTS's own (`dts/<slug>`, template plan T25) by their release
-  commit in the lock and their header's version, which must be the pin's: Contact Form 7
+  commit in the lock and their header's version, which must be the pin's, and as shared code
+  (T26): naming nothing in the site's `namesSharedCodeMustNotUse`, with `Update URI: false`: Contact Form 7
   with the real booking form from `config/booking-form.txt` and `config/booking-form-mail.json`,
   and its messages after sending ("sent" and "sending failed") from
   `config/booking-form-messages.json` (merged into Contact Form 7's own messages; staging and live
@@ -299,7 +300,23 @@ the other site's `SITE_DIR`. `bin/check` always checks this repository; `bin/dep
   leave alone: Playwright (raised together with its image in `tools/versions.sh`) and the
   versions held back on purpose, each raised in its manifest first. Then the self-check
   (`tests/tools/check-tools.sh`), the lock files' diff reviewed line by line, commit.
-- `bin/tools-pin` (template plan 2.1c, T22): writes the site's `.github/workflows/check.yml`,
+- `bin/plugin-check` (template plan T25, T26), in a DTS plugin's own repository, which requires
+  the tools in `require-dev` as a site does: every check the plugin must pass, the same on the
+  developer's computer and in its `check` workflow (`.github/workflows/plugin-check.yml` here).
+  Composer's validation and audit; the plugin's file rules (`tools/plugin-rules.sh`): its
+  Composer name `dts/<slug>` and type `wordpress-plugin`, its main file `<slug>.php` with
+  `Update URI: false` and a plain `Version:`, which `CHANGELOG.md`'s newest release must name;
+  PHPCS and PHPStan with the plugin's own `phpcs.xml.dist` and `phpstan.neon.dist`; the check
+  settings, `composer.lock`, `.github` and `.gitattributes` left out of the release download
+  (`export-ignore`); actionlint; and the caller pinned to the installed tools.
+  `bin/plugin-check --tag v<version>` also checks a tag names the header's version: run before
+  tagging, since a pushed tag can be removed only by switching its ruleset off; the workflow
+  runs it on each tag as well. Whether the plugin names nothing of a site is checked by each
+  site that installs it (`bin/dev-site`, below), against its own `site.json`, so no list of
+  sites' names is kept in a public repository (T20).
+- `bin/tools-pin` (template plan 2.1c, T22, T26): in a DTS plugin's repository (its
+  `composer.json` of type `wordpress-plugin`) writes its `check.yml` from
+  `tools/plugin-workflows/`, which `bin/plugin-check` holds the same way; in a site's, writes the site's `.github/workflows/check.yml`,
   `versions.yml` and `plugin-updates.yml` from `tools/site-workflows/`, each calling a shared
   workflow (`.github/workflows/site-*.yml` here) pinned to the commit of the tools release the
   site's `composer.lock` installs; it refuses a lock file without the tools, with a short commit

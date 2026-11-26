@@ -86,17 +86,14 @@ load_check_settings() {
   readonly SITE_PHP_PREFIX SITE_THEME_DIR SITE_LOCAL_PLUGINS
 }
 
-# Code shared with other sites (the plugins, the tools) must name nothing of this one: the words in
-# site.json's namesSharedCodeMustNotUse (the site's names and its host's), matched as plain text,
-# whatever their case, in the files and folders given; the repository's rules keep everything else
-# out already. Prints each line found and fails if there is one.
+# Code shared with other sites (the plugins, the tools) must name nothing of this one
+# (site_settings_names_in); prints each line found and fails if there is one.
 shared_code_names_nothing_of_this_site() {
-  local name patterns=()
-  while IFS= read -r name; do
-    patterns+=(-e "$name")
-  done < <(site_settings_query '.namesSharedCodeMustNotUse[]')
-  ((${#patterns[@]} > 0)) || return 0
-  ! grep -rniF --exclude-dir=node_modules --exclude=package-lock.json "${patterns[@]}" "$@"
+  local found
+  found="$(site_settings_names_in "$SITE_SETTINGS_FILE" "$@")"
+  [[ -z "$found" ]] && return 0
+  printf '%s\n' "$found"
+  return 1
 }
 
 plugins_name_nothing_of_this_site() {
@@ -120,7 +117,7 @@ plugins_never_updated_from_wordpress_org() {
   local plugin_folder main_file missing=0
   for plugin_folder in "$PROJECT_DIR"/plugins/*/; do
     main_file="$plugin_folder$(basename "$plugin_folder").php"
-    grep -qE '^ \* Update URI: +false$' "$main_file" 2>/dev/null && continue
+    plugin_never_updated_from_wordpress_org "$main_file" && continue
     log "${main_file#"$PROJECT_DIR"/} has no \"Update URI: false\" header"
     missing=1
   done
@@ -352,7 +349,7 @@ run_tools_self_check_when_own() {
 workflows_call_installed_tools() {
   local release differences
   release="$(tools_pin_locked_release "$PROJECT_DIR/composer.lock")" || return 1
-  differences="$(tools_pin_differences "$PROJECT_DIR/.github/workflows" "${release%% *}" "${release#* }")"
+  differences="$(tools_pin_differences "$SITE_WORKFLOW_TEMPLATES_DIR" "$PROJECT_DIR/.github/workflows" "${release%% *}" "${release#* }")"
   [[ -z "$differences" ]] && return 0
   log "the workflows do not call the installed tools; run bin/tools-pin and commit what it writes:"
   printf '%s\n' "$differences" | sed 's/^/    /' >&2

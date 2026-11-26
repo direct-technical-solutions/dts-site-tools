@@ -1,0 +1,54 @@
+# A DTS plugin's checks, called by the plugin's own check.yml (written by bin/tools-pin from
+# tools/plugin-workflows/check.yml, pinned to this repository's commit; template plan T25, T26):
+# every check bin/plugin-check runs, with the tag compared to the plugin's version on a tag run.
+#
+# A called workflow runs as the plugin's repository and checks out its commit, never this
+# repository's, and does not know its own commit (findings of template plan 2.1b-1). So the job
+# first installs the tools the plugin's composer.lock records, with Composer in its pinned
+# container: the same command a fresh clone runs (README.md); the self-check holds every copy of it
+# to tools/versions.sh's Composer image. bin/plugin-check keeps the two pins, this workflow's
+# commit and the lock's, equal.
+name: plugin-check
+
+on:
+  workflow_call:
+
+# Read-only access to the plugin's repository is all the checks need; the caller grants no more.
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      # Pinned by commit, not by tag: a tag can be moved to different code, a commit cannot.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The checks never push; the token is not kept on the runner.
+          persist-credentials: false
+
+      # The tools arrive as GitHub's zip of their release, which GitHub limits for downloads
+      # without a login; the run's own read-only token, given to Composer for this step only,
+      # lifts that limit. Composer writes the commands into the plugin's bin/ (its bin-dir).
+      - name: Install the tools (composer.lock)
+        env:
+          COMPOSER_AUTH: '{"github-oauth": {"github.com": "${{ github.token }}"}}'
+        run: >-
+          mkdir -p vendor bin &&
+          docker run --rm -w /app -e COMPOSER_AUTH
+          -v "$PWD/composer.json:/app/composer.json:ro" -v "$PWD/composer.lock:/app/composer.lock:ro"
+          -v "$PWD/vendor:/app/vendor" -v "$PWD/bin:/app/bin"
+          composer:2.11.1 composer install --no-interaction --no-progress
+
+      # On a tag run the tag must name the plugin's version; the tag's name reaches the script as
+      # an environment variable, never pasted into the command, so no tag name can run as shell.
+      - name: The plugin's checks (bin/plugin-check)
+        env:
+          RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+        run: |
+          if [[ -n "$RELEASE_TAG" ]]; then
+            bin/plugin-check --tag "$RELEASE_TAG"
+          else
+            bin/plugin-check
+          fi

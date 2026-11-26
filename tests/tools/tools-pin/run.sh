@@ -5,7 +5,7 @@
 # require), and a lock file without the tools, with a short commit or that is not JSON is refused,
 # naming the problem; what bin/tools-pin writes matches, and a commit left behind, a hand edit or a
 # missing file is each named by bin/check's comparison; bin/tools-pin started without a usable
-# release writes nothing. Needs bash, jq, cmp, cp and mktemp; nothing goes over the network.
+# release writes nothing; in a DTS plugin's repository it writes the plugin's caller only. Needs bash, jq, cmp, cp and mktemp; nothing goes over the network.
 set -Euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -68,7 +68,7 @@ release_examples() {
 
 expect_differences() {
   local what="$1" workflows_dir="$2" expected="$3" differences
-  differences="$(tools_pin_differences "$workflows_dir" "$NEW_COMMIT" v0.2.0)"
+  differences="$(tools_pin_differences "$SITE_WORKFLOW_TEMPLATES_DIR" "$workflows_dir" "$NEW_COMMIT" v0.2.0)"
   [[ "$differences" == "$expected" ]] && { log "ok    $what"; return 0; }
   log "FAIL  $what: expected \"${expected:-nothing}\", got: ${differences:-nothing}"
   return 1
@@ -77,7 +77,7 @@ expect_differences() {
 # Only the file's name is checked, the start of each difference line, not the wording after it.
 expect_difference_naming() {
   local what="$1" workflows_dir="$2" named="$3" differences
-  differences="$(tools_pin_differences "$workflows_dir" "$NEW_COMMIT" v0.2.0)"
+  differences="$(tools_pin_differences "$SITE_WORKFLOW_TEMPLATES_DIR" "$workflows_dir" "$NEW_COMMIT" v0.2.0)"
   [[ "$(cut -d: -f1 <<<"$differences")" == "$named" ]] && { log "ok    $what"; return 0; }
   log "FAIL  $what: expected one difference naming $named, got: ${differences:-nothing}"
   return 1
@@ -85,18 +85,18 @@ expect_difference_naming() {
 
 comparison_examples() {
   local workflows="$WORK/workflows" failed=0
-  tools_pin_write "$workflows" "$NEW_COMMIT" v0.2.0
+  tools_pin_write "$SITE_WORKFLOW_TEMPLATES_DIR" "$workflows" "$NEW_COMMIT" v0.2.0
   expect_differences "what bin/tools-pin writes matches" "$workflows" "" || failed=1
-  tools_pin_write "$workflows" "$OLD_COMMIT" v0.1.0
+  tools_pin_write "$SITE_WORKFLOW_TEMPLATES_DIR" "$workflows" "$OLD_COMMIT" v0.1.0
   expect_differences "a commit left behind is named in every caller" "$workflows" \
     "$(printf '%s: differs from what bin/tools-pin writes for v0.2.0 (2222222)\n' check.yml plugin-updates.yml versions.yml)" || failed=1
-  tools_pin_write "$workflows" "$NEW_COMMIT" v0.2.0
+  tools_pin_write "$SITE_WORKFLOW_TEMPLATES_DIR" "$workflows" "$NEW_COMMIT" v0.2.0
   sed -i 's/17 6 \* \* 1/0 0 * * */' "$workflows/check.yml"
   expect_difference_naming "a hand edit is named" "$workflows" "check.yml" || failed=1
-  tools_pin_write "$workflows" "$NEW_COMMIT" v0.2.0
+  tools_pin_write "$SITE_WORKFLOW_TEMPLATES_DIR" "$workflows" "$NEW_COMMIT" v0.2.0
   rm "$workflows/versions.yml"
   expect_difference_naming "a missing caller is named" "$workflows" "versions.yml" || failed=1
-  tools_pin_write "$workflows" "$NEW_COMMIT" v0.2.0
+  tools_pin_write "$SITE_WORKFLOW_TEMPLATES_DIR" "$workflows" "$NEW_COMMIT" v0.2.0
   printf 'name: the site'"'"'s own\n' >"$workflows/own.yml"
   expect_differences "the site's other workflows are left alone" "$workflows" "" || failed=1
   return "$failed"
@@ -108,12 +108,14 @@ write_tools_apart() {
   mkdir -p "$folder/bin" "$folder/tools" "$WORK/site/bin" "$WORK/elsewhere"
   cp "$TOOLS_DIR/bin/tools-pin" "$folder/bin/"
   cp "$TOOLS_DIR/tools/paths.sh" "$TOOLS_DIR/tools/tools-pin.sh" "$folder/tools/"
-  cp -r "$TOOLS_DIR/tools/site-workflows" "$folder/tools/"
+  cp -r "$TOOLS_DIR/tools/site-workflows" "$TOOLS_DIR/tools/plugin-workflows" "$folder/tools/"
 }
 
-# Started from an unrelated folder through Composer's bin folder, as a site starts it.
+# Started from an unrelated folder through Composer's bin folder, as a site (or, given its folder,
+# a plugin) starts it.
 run_tools_pin() {
-  (cd "$WORK/elsewhere" && env COMPOSER_RUNTIME_BIN_DIR="$WORK/site/bin" bash "$WORK/tools-apart/bin/tools-pin") >/dev/null 2>&1
+  local repository="${1:-$WORK/site}"
+  (cd "$WORK/elsewhere" && env COMPOSER_RUNTIME_BIN_DIR="$repository/bin" bash "$WORK/tools-apart/bin/tools-pin") >/dev/null 2>&1
 }
 
 command_examples() {
@@ -133,6 +135,38 @@ command_examples() {
   return "$failed"
 }
 
+plugin_caller_examples() {
+  local plugin="$1" written
+  written="$(find "$plugin/.github/workflows" -type f -printf '%f\n' 2>/dev/null)"
+  if [[ "$written" == "check.yml" && -z "$(tools_pin_differences "$PLUGIN_WORKFLOW_TEMPLATES_DIR" "$plugin/.github/workflows" "$NEW_COMMIT" v0.2.0)" ]]; then
+    log "ok    bin/tools-pin writes only the plugin's caller in a plugin's repository"
+    return 0
+  fi
+  log "FAIL  bin/tools-pin in a plugin's repository wrote: ${written:-nothing}"
+  return 1
+}
+
+# A DTS plugin's repository (composer.json of type wordpress-plugin, template plan T26) gets the
+# plugin's caller only; a site's composer.json, of any other type or none, the site's callers.
+plugin_examples() {
+  local plugin="$WORK/plugin" failed=0
+  mkdir -p "$plugin/bin" "$WORK/site-typed"
+  printf '{"name": "dts/example-plugin", "type": "wordpress-plugin"}\n' >"$plugin/composer.json"
+  printf '{"name": "example/site", "type": "project"}\n' >"$WORK/site-typed/composer.json"
+  if [[ "$(tools_pin_templates_dir_of "$plugin")" == "$PLUGIN_WORKFLOW_TEMPLATES_DIR" &&
+    "$(tools_pin_templates_dir_of "$WORK/site-typed")" == "$SITE_WORKFLOW_TEMPLATES_DIR" &&
+    "$(tools_pin_templates_dir_of "$WORK/elsewhere")" == "$SITE_WORKFLOW_TEMPLATES_DIR" ]]; then
+    log "ok    a plugin's repository gets the plugin's templates, any other the site's"
+  else
+    log "FAIL  the templates chosen by composer.json's type"
+    failed=1
+  fi
+  write_lock "$plugin/composer.lock" packages-dev "$NEW_COMMIT" v0.2.0
+  run_tools_pin "$plugin" || { log "FAIL  bin/tools-pin failed in a plugin's repository"; failed=1; }
+  plugin_caller_examples "$plugin" || failed=1
+  return "$failed"
+}
+
 main() {
   local failed=0
   WORK="$(mktemp -d)"
@@ -140,6 +174,7 @@ main() {
   release_examples || failed=1
   comparison_examples || failed=1
   command_examples || failed=1
+  plugin_examples || failed=1
   return "$failed"
 }
 

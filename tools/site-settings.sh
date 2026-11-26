@@ -117,6 +117,22 @@ site_settings_query() {
   jq -r "$program" "$SITE_SETTINGS_FILE"
 }
 
+# Prints each line of the files and folders given (after the settings file) that names something
+# of the site: a word of the settings file's namesSharedCodeMustNotUse (the site's names and its
+# host's), matched as plain text, whatever its case, as grep prints it ("<file>:<line>:<text>");
+# nothing when none does. Code shared with other sites (the plugins, the tools) must name nothing
+# of any one of them, and each site checks the shared code it uses against its own names
+# (template plan T20, T26).
+site_settings_names_in() {
+  local settings_file="$1" name patterns=()
+  shift
+  while IFS= read -r name; do
+    patterns+=(-e "$name")
+  done < <(jq -r '.namesSharedCodeMustNotUse[]' "$settings_file")
+  ((${#patterns[@]} > 0)) || return 0
+  grep -rniF --exclude-dir=node_modules --exclude=package-lock.json "${patterns[@]}" "$@" || return 0
+}
+
 # Prints a line for each test page in a settings file whose content file is missing from the
 # content folder, starting with the page's address. bin/dev-site refuses to build without them.
 site_settings_missing_test_pages() {
