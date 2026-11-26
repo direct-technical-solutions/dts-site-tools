@@ -216,17 +216,25 @@ the other site's `SITE_DIR`. `bin/check` always checks this repository; `bin/dep
   check on the dev site does, 1.5b), checks each folder
   exists on the server for the key, and refuses to lower a downloaded plugin the host updated
   unless `--allow-lower` names it. What it shows comes straight from git and rsync as they print
-  it (template plan T23, 2.1e): before "yes", what git says changed in the site's own code
-  (`git diff --name-only --no-renames` between the note's commit and the new one, over the theme
-  and the site's plugins, the command in its heading, `none` when empty, or why there is nothing
-  to compare with), and what rsync will change on the server (a `--dry-run` of exactly the copy
-  that follows, folder by folder, the downloaded plugins included); when the two disagree about
-  the site's own code, one line says so (a change on the server outside a deploy, which only
-  rsync sees). The copy compares by content and does not copy file times, so a file with the same
-  content is neither listed nor touched; a change to a file's mode alone is not copied, and git
-  listing one makes the two disagree. After "yes" it copies the downloaded plugins, the site's own
-  plugins and the theme, each folder made exactly the commit's, showing rsync's own list and
-  whether it matches the preview; then a second dry run of every folder must list nothing, or it
+  it (template plan T23, T24, 2.1e), in five sections, each a header with its time and source and
+  its lines indented: what goes out (the tested commit, the commit the place runs, the commits
+  arriving); the downloaded plugins (whether their pins changed since the place's commit, from
+  the two commits' `composer.lock`, and the checksum check); what rsync will change, before
+  "yes"; what rsync changed; after the copy. The rsync list is one list, one line per file,
+  written by rsync itself (`--out-format='%i %o <folder path>/%n'`, for example
+  `<fcsT...... send themes/<theme>/style.css` or `*deleting   del. plugins/<plugin>/old.php`;
+  the codes are in rsync's manual under `--itemize-changes`, and `<` there means sent to the
+  server), a `--dry-run` of exactly the copy that follows, under one line naming every folder
+  compared, the only ones copied, and `no file will change` when it lists nothing. Git
+  cross-checks it for the site's own code (`git diff --name-only --no-renames` between the note's
+  commit and the new one, over the theme and the site's plugins): one line, `git agrees`, or each
+  file only one of them names (`only rsync:`, a change on the server outside a deploy, which only
+  rsync sees; `only git:`), or why there is nothing to compare with. The copy compares by content
+  and does not copy file times, so a file with the same content is neither listed nor touched; a
+  change to a file's mode alone is not copied, and git listing one makes the two disagree. After
+  "yes" it copies the downloaded plugins, the site's own plugins and the theme, each folder made
+  exactly the commit's, showing rsync's own list in the same form and whether it matches the
+  preview; then a second dry run of every folder must list nothing, or it
   stops without writing the note; then it writes the note, and names any folder that was empty
   there (to activate by hand). Then the page check
   (`bin/site-check`; failing, it fails the deploy and names the way back, `--commit` with the

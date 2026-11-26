@@ -1,11 +1,11 @@
 {
-  "description": "The commit the server already runs and holds, copied again: git and rsync both answer none for every folder.",
+  "description": "The commit the server already runs and holds, copied again: rsync lists no file before or after, and git agrees there is no change.",
   "place": "staging",
   "checks": { "{B}": [["check / check", "success"], ["check / dev-site", "success"]] },
   "notes": { "example-staging": "{B}" },
   "serverHolds": "{B}",
   "serverPluginVersion": { "example-staging": "1.1.0" },
   "expectStatus": 0,
-  "expectOutputNaming": ["already runs", "themes/example-child): none", "example-download: none", "example-plugin: none", "example-child: none", "the copy matches the preview"],
-  "expectOutputLacking": ["disagree"]
+  "expectOutputNaming": ["already runs", "pins unchanged since {B7}", "no file will change", "git agrees: no change to the site's own code since {B7}", "no file changed", "the copy matches the preview"],
+  "expectOutputLacking": ["disagree", " send ", "del. "]
 }

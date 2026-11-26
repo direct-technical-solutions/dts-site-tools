@@ -3,10 +3,13 @@
 # short name, server/<short name>/<folder>/ in FAKE_SERVICES_DIR, reached the way rsync's daemon
 # mode over ssh reaches "<short name>::<folder>/": only the folders that exist there (the ones
 # the key's settings name); reading a file, listing a folder (--list-only), copying a file into
-# one, and making a folder exactly a local one (-r --delete --checksum --itemize-changes, the
+# one, and making a folder exactly a local one (-r --delete --checksum with its --out-format, the
 # only copy bin/deploy makes, also as a --dry-run). That copy is made by this computer's real
-# rsync between local folders, so its lists are rsync's own (template plan 2.1e); only the network
-# is stood in for. An old copy keeping file times (-t) is refused as unexpected. Every real copy
+# rsync between local folders, with the same --out-format, so its lists are rsync's own (template
+# plan 2.1e, T24); only the network is stood in for, with one visible difference: a local copy
+# marks a file sent with ">" where a copy to a server writes "<", so the situations assert the
+# codes without that first character. An old copy keeping file times (-t) or
+# itemizing without the format (--itemize-changes) is refused as unexpected. Every real copy
 # (not a dry run) is written to writes.txt. It refuses to run unless ssh is told never to ask for
 # a password (BatchMode). A short name in unreachable.txt does not answer; a copy into the folder
 # the situation names as copyFailsAt fails, and one into interruptAt interrupts bin/deploy as
@@ -22,16 +25,17 @@ readonly RSYNC_UNKNOWN_MODULE=5
 readonly RSYNC_IO_ERROR=12
 readonly RSYNC_FILE_MISSING=23
 readonly SSH_FAILED=255
-readonly MIRROR_OPTIONS="-r --delete --checksum --itemize-changes"
+readonly MIRROR_OPTIONS="-r --delete --checksum"
 readonly PLANTED_FILE="planted-on-the-server.txt"
 
-remote_shell="" options="" paths=()
+remote_shell="" options="" out_format="" paths=()
 read_arguments() {
   while (($# > 0)); do
     case "$1" in
       -e) remote_shell="$2" && shift 2 ;;
       -q) shift ;;
-      --list-only | -r | --delete | --checksum | --itemize-changes | --dry-run) options+="${options:+ }$1" && shift ;;
+      --out-format=*) out_format="${1#--out-format=}" && shift ;;
+      --list-only | -r | --delete | --checksum | --dry-run) options+="${options:+ }$1" && shift ;;
       -*) echo "fake rsync: unexpected option $1" >&2; exit "$RSYNC_SYNTAX_ERROR" ;;
       *) paths+=("$1") && shift ;;
     esac
@@ -81,8 +85,9 @@ mirror() {
   local source_path="$1" target="$2" rsync_path
   shift 2
   rsync_path="$(real_rsync)" || exit "$RSYNC_SYNTAX_ERROR"
+  [[ -n "$out_format" ]] || { echo "fake rsync: a mirror copy without --out-format, which bin/deploy never makes" >&2; exit "$RSYNC_SYNTAX_ERROR"; }
   # shellcheck disable=SC2086
-  "$rsync_path" $MIRROR_OPTIONS "$@" "$source_path/" "$target/"
+  "$rsync_path" $MIRROR_OPTIONS "$@" "--out-format=$out_format" "$source_path/" "$target/"
 }
 
 # A file appearing in the folder on the server when the situation names it for this moment.

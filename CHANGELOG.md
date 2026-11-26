@@ -8,6 +8,23 @@ change how a site calls the tools.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-26
+
+### Changed
+
+- `bin/deploy`'s messages made simple to read: five sections (what goes out; the downloaded
+  plugins; what rsync will change, before "yes"; what rsync changed; after the copy), each a
+  header with its time and source and its lines indented. rsync's lists are one list, each line
+  naming the file by its path under `wp-content/` (`--out-format='%i %o <folder path>/%n'`
+  replaces `--itemize-changes`), under one line naming every folder compared, and
+  `no file will change` when nothing does. Git's full list is gone: git is a one-line
+  cross-check of rsync's list for the site's own code, or names each file only one side lists.
+  The downloaded plugins' section says whether their pins changed since the place's commit, and
+  the plugins whose every file matches share one line.
+- `bin/deploy`'s tested-commit line no longer says "by squash or rebase": GitHub does not record
+  a pull request's merge method, and the proof, the same files as its tested last commit, does
+  not need one.
+
 ## [0.3.0] - 2026-11-26
 
 ### Changed
@@ -90,7 +107,8 @@ change how a site calls the tools.
   PHPCSUtils 1.2.3, PHPCSExtra 1.5.1, PHPStan 2.3.5, PHPStan for WordPress 2.0.4 and the
   WordPress stubs 7.1.2.
 
-[Unreleased]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/direct-technical-solutions/dts-site-tools/releases/tag/v0.1.0

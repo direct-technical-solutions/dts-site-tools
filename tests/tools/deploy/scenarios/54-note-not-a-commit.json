@@ -1,10 +1,10 @@
 {
-  "description": "A note whose first line is not a commit (here an option git would obey): git is not asked, the git section says so, and nothing else is affected.",
+  "description": "A note whose first line is not a commit (here an option git would obey): git is not asked, the pins and git lines say so, and nothing else is affected.",
   "place": "staging",
   "checks": { "{B}": [["check / check", "success"], ["check / dev-site", "success"]] },
   "notes": { "example-staging": "--output=planted-by-the-note" },
   "expectStatus": 0,
-  "expectOutputNaming": ["nothing to compare with: staging's note names --output=planted-by-the-note, not a commit in this repository"],
+  "expectOutputNaming": ["pins: nothing to compare with: staging's note names --output=planted-by-the-note, not a commit in this repository", "git: nothing to compare with: staging's note names --output=planted-by-the-note, not a commit in this repository"],
   "expectOutputLacking": ["disagree"],
   "expectServerFiles": { "example-staging/deploy-note/deployed-commit": "{B}" }
 }

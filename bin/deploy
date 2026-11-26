@@ -8,7 +8,7 @@
 # is copied, it refuses unless the
 # working copy is clean, the commit is on GitHub's main and its required checks passed, either on
 # the commit itself (the weekly run, the button) or on its merged pull request's last commit with
-# exactly the same files (a squash or rebase merge makes a new commit, so no check ran on it); where
+# exactly the same files (a merge makes a new commit, on which no check ran); where
 # the site has staging, live accepts only the commit staging runs. It reads which commit the place
 # runs from the note on the server and shows the commits between that one and the new one.
 #
@@ -20,17 +20,22 @@
 # unless --allow-lower names it.
 #
 # What it shows comes straight from git and rsync, as they print it, never counted or reworded by
-# this script (template plan T23): what will happen is shown before "yes", and what happened after
-# it. Before "yes": what git says changed in the site's own code (the theme and the site's
-# plugins) between the commit the server's note names and the new one, and what rsync will change
-# on the server, a dry run of exactly the copy that follows, folder by folder. The two together
-# show a change made on the server outside a deploy, which only rsync sees: when they disagree
-# about the site's own code, one line says so. Only after "yes": the downloaded plugins, the site's
-# own plugins and the theme, in that order (the theme may rely on them), each folder made exactly
-# the commit's, compared by content, with rsync's own list of what it changed and whether that
-# matches the preview; then a second dry run of every folder, which must list nothing, and only
-# then the note. A folder that was empty on the server is named, to activate by hand: a copy runs
-# no code and cannot activate anything.
+# this script (template plan T23, T24), in sections, each a header with its time and source and
+# the lines under it indented: what goes out (the tested commit, the commit the server runs, the
+# commits arriving); the downloaded plugins (whether their pins changed since the server's commit,
+# from the two commits' composer.lock, and every file checked); what rsync will change, before
+# "yes"; what rsync changed, after it; after the copy. The rsync list is the answer to what
+# changes on the server: one list, one line per file, written by rsync itself
+# (--out-format='%i %o <folder path>/%n'; the codes are explained in rsync's manual under
+# --itemize-changes), a dry run of exactly the copy that follows, above it one line naming every
+# folder compared, the only ones copied. Git is a cross-check of it for the site's own code (the
+# theme and the site's plugins): one line saying git agrees, or each file only one of them names
+# (a change made on the server outside a deploy, which only rsync sees). Only after "yes": the
+# downloaded plugins, the site's own plugins and the theme, in that order (the theme may rely on
+# them), each folder made exactly the commit's, compared by content, with rsync's own list of what
+# it changed and whether that matches the preview; then a second dry run of every folder, which
+# must list nothing, and only then the note. A folder that was empty on the server is named, to
+# activate by hand: a copy runs no code and cannot activate anything.
 #
 # After the copy (handbook steps 7 and 8): the page check (bin/site-check), whose failure fails
 # the deploy and names the way back (--commit with the commit the place ran before); then the PHP
@@ -88,12 +93,18 @@ readonly PLACES=(staging live)
 # listed nor touched (proven on the deploy test's server, template plan 2.1e part 1). A copied
 # file's line then shows "T": its time becomes the time of the copy. Permissions are left to the
 # server's own setting for the key's folders, so a change to a file's mode alone is not copied.
-readonly COPY_OPTIONS=(-r --delete --checksum --itemize-changes)
+# Each line is printed by rsync's --out-format (mirror_folder), which names the folder's path.
+readonly COPY_OPTIONS=(-r --delete --checksum)
 # A note's first line is used as a commit only when it looks like one, so text on the server can
 # never reach git as an option.
 readonly COMMIT_PATTERN='^[0-9a-f]{7,40}$'
-# rsync's itemized lines: 11 characters of change flags, a space, then the path.
-readonly ITEMIZED_PATH_COLUMN=13
+# rsync's lines ('%i %o <path>'): 11 characters of change codes, a space, 4 of the operation
+# ("send", "del."), a space, then the path from the folder's path on.
+readonly LISTED_PATH_COLUMN=18
+# The lines under a section's header start under its title, past the time ("12:00:00 ").
+readonly LINE_INDENT="         "
+# The pinned plugins' list in a commit.
+readonly LOCK_FILE_PATH="site-packages/composer.lock"
 readonly DOWNLOAD_SECONDS=60
 # Problems shown from a long list, so a refusal stays readable.
 readonly PROBLEMS_SHOWN=10
@@ -123,7 +134,19 @@ GITHUB_REPOSITORY_NAME=""
 DEPLOY_COMMIT=""
 WORK_DIR=""
 
-log() { printf '%s [deploy] %s\n' "$(date +%H:%M:%S)" "$*" >&2; }
+# Output (template plan T24): a section's header carries the time and the source of what is
+# under it; its lines are indented and carry no time, so what belongs together reads together.
+# log, flush left with the time, is for what stands apart: a refusal, an interruption.
+log() { printf '%s %s\n' "$(date +%H:%M:%S)" "$*" >&2; }
+SECTION_SHOWN=false
+section() {
+  [[ "$SECTION_SHOWN" == false ]] || printf '\n' >&2
+  SECTION_SHOWN=true
+  printf '%s %s\n' "$(date +%H:%M:%S)" "$*" >&2
+}
+line() { printf '%s%s\n' "$LINE_INDENT" "$*" >&2; }
+# A tool's own lines, read from standard input, indented as a section's lines.
+indent() { sed "s/^/$LINE_INDENT/" >&2; }
 refuse() {
   log "REFUSED: $*"
   if [[ "$COPY_STARTED" == true ]]; then
@@ -270,7 +293,7 @@ commit_tree_on_github() {
 require_tested_commit() {
   local own_failures pull head number failures head_tree
   own_failures="$(failed_required_checks "$DEPLOY_COMMIT")"
-  [[ -n "$own_failures" ]] || { log "commit ${DEPLOY_COMMIT:0:7}: its checks passed"; return; }
+  [[ -n "$own_failures" ]] || { line "commit ${DEPLOY_COMMIT:0:7}: its checks passed"; return; }
   pull="$(merged_pull_request_head "$DEPLOY_COMMIT")" || refuse "GitHub did not answer which pull request holds ${DEPLOY_COMMIT:0:7}"
   [[ -n "$pull" ]] || refuse "commit ${DEPLOY_COMMIT:0:7} is not tested: no merged pull request holds it, and on the commit itself: $(paste -sd ';' <<<"$own_failures")"
   number="${pull%% *}" head="${pull#* }"
@@ -279,7 +302,8 @@ require_tested_commit() {
     refuse "commit ${DEPLOY_COMMIT:0:7} does not hold the same files as #$number's tested last commit ${head:0:7}; only a pull request's last commit can be deployed"
   failures="$(failed_required_checks "$head")"
   [[ -z "$failures" ]] || refuse "#$number's last commit ${head:0:7} did not pass its checks: $(paste -sd ';' <<<"$failures")"
-  log "commit ${DEPLOY_COMMIT:0:7}: pull request #$number, merged on GitHub by squash or rebase; the merge made a new commit with the same files as #$number's last commit ${head:0:7}, whose checks passed"
+  # No merge method named: GitHub records none, and the proof (the same files) does not need one.
+  line "commit ${DEPLOY_COMMIT:0:7}: pull request #$number, merged on GitHub; the merge made a new commit with the same files as #$number's last commit ${head:0:7}, whose checks passed"
 }
 
 # Reads the commit a place runs from its note into SERVER_COMMIT; empty before the first deploy.
@@ -305,7 +329,7 @@ require_staging_runs_commit() {
   [[ -n "$SERVER_COMMIT" ]] || refuse "live accepts only the commit staging runs, and staging has no note yet; deploy to staging first"
   [[ "$SERVER_COMMIT" == "$DEPLOY_COMMIT" ]] ||
     refuse "live accepts only the commit staging runs: staging runs ${SERVER_COMMIT:0:7}, this is ${DEPLOY_COMMIT:0:7}; deploy it to staging first"
-  log "staging runs ${DEPLOY_COMMIT:0:7} too"
+  line "staging runs ${DEPLOY_COMMIT:0:7} too"
 }
 
 # A note's commit this repository holds; checked for its shape first, so it is never an option.
@@ -317,18 +341,18 @@ is_known_commit() {
 show_changes() {
   local current="$1"
   if [[ -z "$current" ]]; then
-    log "$PLACE has no note yet (a first deploy); it gets ${DEPLOY_COMMIT:0:7}:"
-    in_repository log --oneline -1 "$DEPLOY_COMMIT" >&2
+    line "$PLACE has no note yet (a first deploy); it gets ${DEPLOY_COMMIT:0:7}:"
+    in_repository log --oneline -1 "$DEPLOY_COMMIT" | indent
   elif [[ "$current" == "$DEPLOY_COMMIT" ]]; then
-    log "$PLACE already runs ${DEPLOY_COMMIT:0:7}; this copies it again"
+    line "$PLACE already runs ${DEPLOY_COMMIT:0:7}; this copies it again"
   elif ! is_known_commit "$current"; then
-    log "$PLACE runs $current, which is not in this repository's history; it gets ${DEPLOY_COMMIT:0:7}"
+    line "$PLACE runs $current, which is not in this repository's history; it gets ${DEPLOY_COMMIT:0:7}"
   elif in_repository merge-base --is-ancestor "$current" "$DEPLOY_COMMIT"; then
-    log "$PLACE runs ${current:0:7}; these commits arrive:"
-    in_repository log --oneline "$current..$DEPLOY_COMMIT" >&2
+    line "$PLACE runs ${current:0:7}; these commits arrive:"
+    in_repository log --oneline "$current..$DEPLOY_COMMIT" | indent
   else
-    log "$PLACE runs ${current:0:7}; going back to ${DEPLOY_COMMIT:0:7} takes away these commits:"
-    in_repository log --oneline "$DEPLOY_COMMIT..$current" >&2
+    line "$PLACE runs ${current:0:7}; going back to ${DEPLOY_COMMIT:0:7} takes away these commits:"
+    in_repository log --oneline "$DEPLOY_COMMIT..$current" | indent
   fi
 }
 
@@ -339,7 +363,7 @@ export_release() {
   in_repository archive "$DEPLOY_COMMIT" | tar -x -C "$RELEASE_DIR" || refuse "could not export commit ${DEPLOY_COMMIT:0:7}"
 }
 
-release_lock_file() { printf '%s/site-packages/composer.lock' "$RELEASE_DIR"; }
+release_lock_file() { printf '%s/%s' "$RELEASE_DIR" "$LOCK_FILE_PATH"; }
 
 # What this commit copies, from its own site.json and composer.lock: a commit from before a plugin
 # was added copies what it had then.
@@ -356,7 +380,8 @@ load_release_contents() {
 }
 
 # The site's own code in the repository and its folder on the server, the theme last: the paths
-# git compares and the folders whose rsync lists must agree with git's.
+# git compares and the folders whose rsync lists must agree with git's. A path in the repository
+# is also the folder's path on the server, under wp-content/.
 site_code_targets() {
   local plugin_slug
   for plugin_slug in "${RELEASE_LOCAL_PLUGINS[@]}"; do
@@ -365,32 +390,46 @@ site_code_targets() {
   printf 'themes/%s\t%s\n' "$RELEASE_THEME" "$RELEASE_THEME"
 }
 
-# A list as the tool printed it, or "none" when it printed nothing.
-show_list() {
-  local heading="$1" list_file="$2"
-  if [[ -s "$list_file" ]]; then
-    log "$heading"
-    cat "$list_file" >&2
-  else
-    log "$heading none"
-  fi
+# Why there is no earlier commit to compare the new one with, or nothing when there is one.
+no_comparison_reason() {
+  [[ -n "$PREVIOUS_COMMIT" ]] || { printf '%s has no note yet' "$PLACE"; return 0; }
+  is_known_commit "$PREVIOUS_COMMIT" || printf "%s's note names %s, not a commit in this repository" "$PLACE" "$PREVIOUS_COMMIT"
 }
 
-# What git says changed in the site's own code between the commit the place's note names and the
-# one going out, printed as git writes it, with the command. The downloaded plugins are not in git
-# (only their pins), so rsync's list alone shows theirs. --no-renames lists a renamed file under
-# both names, as rsync sees it: one file deleted, one new.
-GIT_CHANGES_FILE=""
-show_git_changes() {
-  local paths=() heading="--- what git says changed in the site's own code:"
-  [[ -n "$PREVIOUS_COMMIT" ]] || { log "$heading nothing to compare with: $PLACE has no note yet"; return 0; }
-  is_known_commit "$PREVIOUS_COMMIT" ||
-    { log "$heading nothing to compare with: $PLACE's note names $PREVIOUS_COMMIT, not a commit in this repository"; return 0; }
-  mapfile -t paths < <(site_code_targets | cut -f1)
-  GIT_CHANGES_FILE="$WORK_DIR/git-changes"
-  in_repository diff --name-only --no-renames "$PREVIOUS_COMMIT" "$DEPLOY_COMMIT" -- "${paths[@]}" >"$GIT_CHANGES_FILE" ||
-    refuse "git could not compare ${PREVIOUS_COMMIT:0:7} with ${DEPLOY_COMMIT:0:7}"
-  show_list "${heading%:} (git diff --name-only --no-renames ${PREVIOUS_COMMIT:0:7} ${DEPLOY_COMMIT:0:7} -- ${paths[*]}):" "$GIT_CHANGES_FILE"
+# "<slug> <version>" for each plugin a lock file pins, sorted for join; nothing for no lock file.
+pinned_plugin_versions() {
+  [[ -s "$1" ]] || return 0
+  jq -r '.packages[]? | select(.type == "wordpress-plugin") | "\(.name | sub("^.*/"; "")) \(.version)"' "$1" | LC_ALL=C sort
+}
+
+# The plugins whose pin differs between two lock files, on one line. A plugin taken out of the
+# pins is not in the copy, so its folder on the server stays as it is (removing it is by hand).
+pin_changes() {
+  LC_ALL=C join -a 1 -a 2 -e - -o 0,1.2,2.2 <(pinned_plugin_versions "$1") <(pinned_plugin_versions "$2") |
+    awk '$2 != $3 {
+      if ($2 == "-") change = $1 " " $3 " added"
+      else if ($3 == "-") change = $1 " " $2 " taken out of the pins (its folder on the server is left as it is)"
+      else change = $1 " " $2 " → " $3
+      changes = changes (changes == "" ? "" : ", ") change
+    } END { print changes }'
+}
+
+# Whether the plugins' pins changed since the commit the place runs, from git and the two
+# commits' composer.lock. Whether a plugin's files change on the server is rsync's list: the
+# host may have updated one by itself.
+show_pin_changes() {
+  local reason since previous_lock="$WORK_DIR/previous-composer.lock" changes
+  reason="$(no_comparison_reason)"
+  [[ -z "$reason" ]] || { line "pins: nothing to compare with: $reason"; return 0; }
+  since="${PREVIOUS_COMMIT:0:7}"
+  if in_repository diff --quiet "$PREVIOUS_COMMIT" "$DEPLOY_COMMIT" -- "$LOCK_FILE_PATH"; then
+    line "pins unchanged since $since (git: $LOCK_FILE_PATH)"
+    return 0
+  fi
+  in_repository show "$PREVIOUS_COMMIT:$LOCK_FILE_PATH" >"$previous_lock" 2>/dev/null || : >"$previous_lock"
+  changes="$(pin_changes "$previous_lock" "$(release_lock_file)")"
+  [[ -n "$changes" ]] || changes="no plugin's version, only the lock file's other entries"
+  line "pins changed since $since (git: $LOCK_FILE_PATH): $changes"
 }
 
 # --allow-lower names only plugins the commit downloads, so a typo cannot slip through unused.
@@ -407,7 +446,6 @@ require_known_allowed_lower() {
 build_downloaded_plugins() {
   ((${#RELEASE_DOWNLOADED_PLUGINS[@]} > 0)) || return 0
   local packages="$RELEASE_DIR/site-packages"
-  log "building the downloaded plugins from composer.lock: ${RELEASE_DOWNLOADED_PLUGINS[*]}"
   docker run --rm -w /app -v "$packages:/app" \
     -v "$packages/composer.json:/app/composer.json:ro" -v "$packages/composer.lock:/app/composer.lock:ro" \
     -v "$COMPOSER_CACHE_VOLUME:/tmp/composer-cache" -e COMPOSER_CACHE_DIR=/tmp/composer-cache \
@@ -418,9 +456,12 @@ build_downloaded_plugins() {
 downloaded_plugin_dir() { printf '%s/site-packages/wp-content/plugins/%s' "$RELEASE_DIR" "$1"; }
 
 # Every file of each downloaded plugin as WordPress.org published it: nothing missing, changed or
-# added. The lock file holds no fingerprint for these zips, so this is what proves them.
+# added. The lock file holds no fingerprint for these zips, so this is what proves them; it runs
+# on every deploy, since the fresh build is what rsync compares the server with and copies. The
+# plugins that match in full share one line.
 verify_downloaded_plugins() {
-  local plugin_slug version checksums problems
+  local plugin_slug version checksums problems matching=() joined
+  ((${#RELEASE_DOWNLOADED_PLUGINS[@]} > 0)) || { line "none: the commit pins no downloaded plugin"; return 0; }
   for plugin_slug in "${RELEASE_DOWNLOADED_PLUGINS[@]}"; do
     version="$(site_packages_pinned_version "$(release_lock_file)" "$plugin_slug")"
     [[ -d "$(downloaded_plugin_dir "$plugin_slug")" ]] || refuse "the build made no folder for $plugin_slug"
@@ -430,7 +471,11 @@ verify_downloaded_plugins() {
     problems="$(site_packages_checksum_problems "$(downloaded_plugin_dir "$plugin_slug")" "$checksums")" ||
       refuse "$plugin_slug $version: $problems"
     report_checksum_problems "$plugin_slug" "$version" "$problems"
+    [[ -n "$problems" ]] || matching+=("$plugin_slug $version")
   done
+  ((${#matching[@]} > 0)) || return 0
+  joined="$(printf '%s, ' "${matching[@]}")"
+  line "${joined%, }: every file matches WordPress.org's release"
 }
 
 # A changed or added file refuses the deploy: that is how a stranger's code would arrive. A file
@@ -442,31 +487,29 @@ report_checksum_problems() {
   refusing="$(grep -v ': missing$' <<<"$problems" || true)"
   missing="$(grep ': missing$' <<<"$problems" | sed 's/: missing$//' || true)"
   [[ -z "$refusing" ]] || refuse "$plugin_slug $version does not match WordPress.org's release: $(head -n "$PROBLEMS_SHOWN" <<<"$refusing" | paste -sd ';')"
-  if [[ -n "$missing" ]]; then
-    log "$plugin_slug $version: no file changed or added; $(grep -c . <<<"$missing") file(s) WordPress.org lists are not in the download: $(head -n "$PROBLEMS_SHOWN" <<<"$missing" | paste -sd ' ')"
-    return 0
-  fi
-  log "$plugin_slug $version: every file matches WordPress.org's release"
+  [[ -z "$missing" ]] ||
+    line "$plugin_slug $version: no file changed or added; $(grep -c . <<<"$missing") file(s) WordPress.org lists are not in the download: $(head -n "$PROBLEMS_SHOWN" <<<"$missing" | paste -sd ' ')"
 }
 
-# The folders this commit copies into, by their names on the server, in the order copied: the
-# downloaded plugins, the site's own plugins, then the theme.
+# The folders this commit copies into, in the order copied (the downloaded plugins, the site's own
+# plugins, then the theme): the commit's folder, the folder's name for the place's key, and its
+# path under wp-content/, which rsync's lines name.
 copy_targets() {
   local plugin_slug
   for plugin_slug in "${RELEASE_DOWNLOADED_PLUGINS[@]}"; do
-    printf '%s\t%s\n' "$(downloaded_plugin_dir "$plugin_slug")" "$plugin_slug"
+    printf '%s\t%s\tplugins/%s\n' "$(downloaded_plugin_dir "$plugin_slug")" "$plugin_slug" "$plugin_slug"
   done
   for plugin_slug in "${RELEASE_LOCAL_PLUGINS[@]}"; do
-    printf '%s\t%s\n' "$RELEASE_DIR/plugins/$plugin_slug" "$plugin_slug"
+    printf '%s\t%s\tplugins/%s\n' "$RELEASE_DIR/plugins/$plugin_slug" "$plugin_slug" "$plugin_slug"
   done
-  printf '%s\t%s\n' "$RELEASE_DIR/themes/$RELEASE_THEME" "$RELEASE_THEME"
+  printf '%s\t%s\tthemes/%s\n' "$RELEASE_DIR/themes/$RELEASE_THEME" "$RELEASE_THEME" "$RELEASE_THEME"
 }
 
 # Each folder must exist on the server for this place's key (set up by hand, template plan
 # 1.4e); an empty one is new there.
 check_server_folders() {
-  local source_dir folder listing
-  while IFS=$'\t' read -r source_dir folder; do
+  local source_dir folder _folder_path listing
+  while IFS=$'\t' read -r source_dir folder _folder_path; do
     [[ -d "$source_dir" ]] || refuse "commit ${DEPLOY_COMMIT:0:7} has no $source_dir to copy"
     listing="$(rsync --list-only -e "$(ssh_command)" "$PLACE_SSH_HOST::$folder/" 2>"$WORK_DIR/list-errors")" ||
       refuse "$PLACE_SSH_HOST has no folder $folder for this key, or did not answer: $(tail -n 2 "$WORK_DIR/list-errors" | paste -sd ' ')"
@@ -497,76 +540,122 @@ check_server_versions() {
     fi
     [[ " ${ALLOWED_LOWER[*]} " == *" $plugin_slug "* ]] ||
       refuse "$plugin_slug is $on_server on $PLACE, newer than the $pinned pinned; raise the pin in site-packages/composer.json, or lower it on purpose with --allow-lower $plugin_slug"
-    log "$plugin_slug: $on_server on $PLACE becomes $pinned (--allow-lower)"
+    line "$plugin_slug: $on_server on $PLACE becomes $pinned (--allow-lower)"
   done
 }
 
 show_new_folders() {
-  ((${#NEW_FOLDERS[@]} == 0)) || log "empty on $PLACE so far (new there): ${NEW_FOLDERS[*]}"
+  ((${#NEW_FOLDERS[@]} == 0)) || line "empty on $PLACE so far (new there): ${NEW_FOLDERS[*]}"
 }
 
-# The copy of one folder, made exactly the commit's; extra options (--dry-run) come first.
+# The copy of one folder, made exactly the commit's; extra options (--dry-run) come first. rsync
+# writes each line itself, the folder's path in its format, so the list names every file by its
+# path under wp-content/ and the script translates nothing (template plan T24, proven in
+# findings/step-2.1e-6-out-format-proof.md). The path holds no "%": site.json allows only
+# lower-case letters, digits and dashes in the theme's and the site's plugins' names, and
+# Composer none in a package's.
 mirror_folder() {
-  local source_dir="$1" folder="$2"
-  shift 2
-  rsync "${COPY_OPTIONS[@]}" "$@" -e "$(ssh_command)" "$source_dir/" "$PLACE_SSH_HOST::$folder/"
+  local source_dir="$1" folder="$2" folder_path="$3"
+  shift 3
+  rsync "${COPY_OPTIONS[@]}" "$@" "--out-format=%i %o $folder_path/%n" -e "$(ssh_command)" "$source_dir/" "$PLACE_SSH_HOST::$folder/"
 }
 
 # A dry run of one folder's copy into a file: rsync's own list of what the copy would change.
 dry_run_folder() {
-  local source_dir="$1" folder="$2" list_file="$3"
-  mirror_folder "$source_dir" "$folder" --dry-run >"$list_file" 2>"$WORK_DIR/dry-run-errors" ||
+  local source_dir="$1" folder="$2" folder_path="$3" list_file="$4"
+  mirror_folder "$source_dir" "$folder" "$folder_path" --dry-run >"$list_file" 2>"$WORK_DIR/dry-run-errors" ||
     refuse "the dry run of the copy into $folder failed: $(tail -n 3 "$WORK_DIR/dry-run-errors" | paste -sd ' ')"
 }
 
-# Before "yes": what rsync will change on the server, a dry run of exactly the copy that follows.
-preview_copy() {
-  local source_dir folder
-  mkdir -p "$WORK_DIR/preview"
-  log "--- what rsync will change on $PLACE (a dry run of the same copy, folder by folder, in order):"
-  while IFS=$'\t' read -r source_dir folder; do
-    dry_run_folder "$source_dir" "$folder" "$WORK_DIR/preview/$folder"
-    show_list "$folder:" "$WORK_DIR/preview/$folder"
-  done < <(copy_targets)
-  log "$NOTE_FOLDER: $NOTE_FILE rewritten to name ${DEPLOY_COMMIT:0:7}, after every folder"
+# Every folder's list in one, in copy order, from the folder of lists given.
+joined_lists() {
+  local list_dir="$1" folder
+  while IFS= read -r folder; do
+    cat "$list_dir/$folder"
+  done < <(copy_targets | cut -f2)
 }
 
-# The repository paths of the files rsync's preview lists for the site's own code; folders
-# (lines ending in "/") left out, since git lists files only.
+# Before "yes": what rsync will change on the server, a dry run of exactly the copy that follows,
+# under the one line naming every folder compared, so an empty list means nothing changes.
+preview_copy() {
+  local source_dir folder folder_path
+  mkdir -p "$WORK_DIR/preview"
+  section "What rsync will change on $PLACE, before \"yes\" (rsync --dry-run)"
+  line "compared, and the only folders copied (the commit's site.json and $LOCK_FILE_PATH): $(copy_targets | cut -f3 | paste -sd ' ')"
+  while IFS=$'\t' read -r source_dir folder folder_path; do
+    dry_run_folder "$source_dir" "$folder" "$folder_path" "$WORK_DIR/preview/$folder"
+  done < <(copy_targets)
+  joined_lists "$WORK_DIR/preview" >"$WORK_DIR/preview-all"
+  if [[ -s "$WORK_DIR/preview-all" ]]; then indent <"$WORK_DIR/preview-all"; else line "no file will change"; fi
+  line "$NOTE_FOLDER/$NOTE_FILE: rewritten to name ${DEPLOY_COMMIT:0:7}, last, once every folder is copied"
+}
+
+# The paths of the files rsync's preview lists for the site's own code, which are also their
+# paths in the repository; folders (lines ending in "/") left out, since git lists files only.
 rsync_site_code_files() {
-  local repository_path folder
-  while IFS=$'\t' read -r repository_path folder; do
-    awk -v prefix="$repository_path/" -v column="$ITEMIZED_PATH_COLUMN" \
-      '!/\/$/ { print prefix substr($0, column) }' "$WORK_DIR/preview/$folder"
+  local _repository_path folder
+  while IFS=$'\t' read -r _repository_path folder; do
+    awk -v column="$LISTED_PATH_COLUMN" '!/\/$/ { print substr($0, column) }' "$WORK_DIR/preview/$folder"
   done < <(site_code_targets)
 }
 
-# Git and rsync answer the same question for the site's own code when the server holds exactly
-# the commit its note names; when they disagree, something changed there outside a deploy (or a
-# deploy stopped halfway). Only said, never refused: the copy makes the folders the commit's
-# either way, and both lists are above for the user to read.
+# Git's files for the site's own code between the commit the place runs and the new one, sorted.
+# --no-renames lists a renamed file under both names, as rsync sees it: one deleted, one new.
+git_site_code_files() {
+  local paths=()
+  mapfile -t paths < <(site_code_targets | cut -f1)
+  in_repository diff --name-only --no-renames "$PREVIOUS_COMMIT" "$DEPLOY_COMMIT" -- "${paths[@]}" | LC_ALL=C sort -u
+}
+
+# Git cross-checks rsync's list for the site's own code (the downloaded plugins are not in git,
+# only their pins): when the server holds exactly the commit its note names, both name the same
+# files. When they do not, something changed there outside a deploy (or a deploy stopped
+# halfway). Only said, never refused: the copy makes the folders the commit's either way.
+cross_check_with_git() {
+  local reason git_files="$WORK_DIR/git-files" rsync_files="$WORK_DIR/rsync-files"
+  reason="$(no_comparison_reason)"
+  [[ -z "$reason" ]] || { line "git: nothing to compare with: $reason"; return 0; }
+  git_site_code_files >"$git_files" || refuse "git could not compare ${PREVIOUS_COMMIT:0:7} with ${DEPLOY_COMMIT:0:7}"
+  rsync_site_code_files | LC_ALL=C sort -u >"$rsync_files"
+  if cmp -s "$git_files" "$rsync_files"; then
+    report_agreement "$git_files"
+  else
+    report_disagreement "$git_files" "$rsync_files"
+  fi
+}
+
+report_agreement() {
+  local git_files="$1" since="${PREVIOUS_COMMIT:0:7}"
+  if [[ -s "$git_files" ]]; then
+    line "git agrees (since $since): $(paste -sd ' ' "$git_files")"
+  else
+    line "git agrees: no change to the site's own code since $since"
+  fi
+}
+
+# Each file only one side names, with that side.
 report_disagreement() {
-  [[ -n "$GIT_CHANGES_FILE" ]] || return 0
-  sort -u "$GIT_CHANGES_FILE" >"$WORK_DIR/git-files"
-  rsync_site_code_files | sort -u >"$WORK_DIR/rsync-files"
-  cmp -s "$WORK_DIR/git-files" "$WORK_DIR/rsync-files" && return 0
-  log "NOTE: git and rsync disagree about the site's own code (both lists above): something on $PLACE changed outside a deploy, or a deploy did not finish; the copy makes it the commit's"
+  local git_files="$1" rsync_files="$2"
+  line "NOTE: git and rsync disagree about the site's own code since ${PREVIOUS_COMMIT:0:7}: something on $PLACE changed outside a deploy, or a deploy did not finish; the copy makes it the commit's"
+  LC_ALL=C comm -23 "$rsync_files" "$git_files" | sed 's/^/  only rsync: /' | indent
+  LC_ALL=C comm -13 "$rsync_files" "$git_files" | sed 's/^/  only git: /' | indent
 }
 
 confirm() {
   local answer=""
-  ((${#ALLOWED_LOWER[@]} == 0)) || log "allowed to lower on $PLACE: ${ALLOWED_LOWER[*]}"
-  printf 'Deploy %s to %s (%s)? Type yes to go on: ' "${DEPLOY_COMMIT:0:7}" "$PLACE" "$PLACE_ADDRESS" >&2
+  ((${#ALLOWED_LOWER[@]} == 0)) || line "allowed to lower on $PLACE: ${ALLOWED_LOWER[*]}"
+  printf '\nDeploy %s to %s (%s)? Type yes to go on: ' "${DEPLOY_COMMIT:0:7}" "$PLACE" "$PLACE_ADDRESS" >&2
   read -r answer || true
   [[ "$answer" == yes ]] || refuse "not confirmed"
 }
 
-# One folder made exactly the commit's, with rsync's own list of what it changed.
+# One folder made exactly the commit's, with rsync's own list of what it changed, shown as each
+# folder is done, so a copy that fails halfway still shows what reached the server.
 copy_folder() {
-  local source_dir="$1" folder="$2"
-  mirror_folder "$source_dir" "$folder" >"$WORK_DIR/copied/$folder" 2>"$WORK_DIR/copy-errors" ||
-    refuse "the copy into $folder failed: $(tail -n 3 "$WORK_DIR/copy-errors" | paste -sd ' ')"
-  show_list "$folder:" "$WORK_DIR/copied/$folder"
+  local source_dir="$1" folder="$2" folder_path="$3"
+  mirror_folder "$source_dir" "$folder" "$folder_path" >"$WORK_DIR/copied/$folder" 2>"$WORK_DIR/copy-errors" ||
+    { indent <"$WORK_DIR/copied/$folder"; refuse "the copy into $folder failed: $(tail -n 3 "$WORK_DIR/copy-errors" | paste -sd ' ')"; }
+  indent <"$WORK_DIR/copied/$folder"
 }
 
 # Each folder's real list against its preview: a difference means the server changed between
@@ -576,20 +665,24 @@ compare_with_preview() {
   while IFS= read -r folder; do
     cmp -s "$WORK_DIR/preview/$folder" "$WORK_DIR/copied/$folder" && continue
     differs=true
-    log "$folder: the copy differs from the preview (diff, preview then copy):"
-    diff "$WORK_DIR/preview/$folder" "$WORK_DIR/copied/$folder" >&2
+    line "$folder: the copy differs from the preview (diff, preview then copy):"
+    diff "$WORK_DIR/preview/$folder" "$WORK_DIR/copied/$folder" | indent
   done < <(copy_targets | cut -f2)
-  [[ "$differs" == true ]] || log "the copy matches the preview"
+  [[ "$differs" == true ]] || line "the copy matches the preview"
 }
 
 copy_release() {
-  local source_dir folder
+  local source_dir folder folder_path
   COPY_STARTED=true
   mkdir -p "$WORK_DIR/copied"
-  log "--- what rsync changed on $PLACE:"
-  while IFS=$'\t' read -r source_dir folder; do
-    copy_folder "$source_dir" "$folder"
+  section "What rsync changed on $PLACE (rsync)"
+  while IFS=$'\t' read -r source_dir folder folder_path; do
+    copy_folder "$source_dir" "$folder" "$folder_path"
   done < <(copy_targets)
+  # Into a file, not piped into grep -q: grep stops at the first line, and pipefail would read the
+  # interrupted writer's failure as an empty list.
+  joined_lists "$WORK_DIR/copied" >"$WORK_DIR/copied-all"
+  [[ -s "$WORK_DIR/copied-all" ]] || line "no file changed"
   compare_with_preview
 }
 
@@ -597,16 +690,18 @@ copy_release() {
 # commit's files. Otherwise no note is written, since it would name a commit the server does not
 # hold, and the next deploy's comparison with git would start from a false point.
 prove_copy() {
-  local source_dir folder leftover=false
+  local source_dir folder folder_path
   mkdir -p "$WORK_DIR/proof"
-  while IFS=$'\t' read -r source_dir folder; do
-    dry_run_folder "$source_dir" "$folder" "$WORK_DIR/proof/$folder"
-    [[ -s "$WORK_DIR/proof/$folder" ]] || continue
-    leftover=true
-    show_list "$folder: still differs after the copy:" "$WORK_DIR/proof/$folder"
+  while IFS=$'\t' read -r source_dir folder folder_path; do
+    dry_run_folder "$source_dir" "$folder" "$folder_path" "$WORK_DIR/proof/$folder"
   done < <(copy_targets)
-  [[ "$leftover" == false ]] || refuse "a second dry run after the copy still lists changes (above), so no note was written"
-  log "proof: a second dry run lists nothing in any folder"
+  joined_lists "$WORK_DIR/proof" >"$WORK_DIR/proof-all"
+  if [[ -s "$WORK_DIR/proof-all" ]]; then
+    line "the second dry run still lists:"
+    indent <"$WORK_DIR/proof-all"
+    refuse "a second dry run after the copy still lists changes (above), so no note was written"
+  fi
+  line "proof: a second dry run lists nothing in any folder"
 }
 
 # Written only after every folder was copied, so the note never names a commit half there.
@@ -615,14 +710,14 @@ write_note() {
   printf '%s\ndeployed %s by bin/deploy\n' "$DEPLOY_COMMIT" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$note"
   rsync -q -e "$(ssh_command)" "$note" "$PLACE_SSH_HOST::$NOTE_FOLDER/$NOTE_FILE" 2>"$WORK_DIR/note-errors" ||
     refuse "every folder was copied, but the note could not be written: $(tail -n 2 "$WORK_DIR/note-errors" | paste -sd ' ')"
-  log "$PLACE now runs commit: ${DEPLOY_COMMIT:0:7}"
+  line "$PLACE now runs commit: ${DEPLOY_COMMIT:0:7}"
 }
 
 report_new_folders() {
   local folder
   for folder in "${NEW_FOLDERS[@]}"; do
-    [[ "$folder" == "$RELEASE_THEME" ]] && log "new on $PLACE: the theme $folder; activate it under Appearance > Themes" && continue
-    log "new on $PLACE: $folder; activate it under Plugins"
+    [[ "$folder" == "$RELEASE_THEME" ]] && line "new on $PLACE: the theme $folder; activate it under Appearance > Themes" && continue
+    line "new on $PLACE: $folder; activate it under Plugins"
   done
 }
 
@@ -665,8 +760,10 @@ read_php_log() {
     refuse "could not read $PLACE's PHP log: $(tail -n 2 "$WORK_DIR/log-errors" | paste -sd ' ')"
 }
 
-# Every check that can refuse, so "yes" is asked only for a deploy that can be carried out.
+# Every check that can refuse, so "yes" is asked only for a deploy that can be carried out; the
+# first two sections of what it shows (template plan T24).
 prepare_deploy() {
+  section "What goes out (git, GitHub)"
   require_clean_working_copy
   resolve_deploy_commit
   load_github_repository_name
@@ -678,15 +775,20 @@ prepare_deploy() {
   load_page_check_login
   export_release
   load_release_contents
-  show_git_changes
   require_known_allowed_lower
+  section "The downloaded plugins (git, Composer, WordPress.org)"
+  show_pin_changes
   build_downloaded_plugins
   verify_downloaded_plugins
   check_server_folders
   check_server_versions
   read_php_log "$WORK_DIR/php-log.before"
+}
+
+# The third section: what will change, the git cross-check, and the folders new on the server.
+preview_deploy() {
   preview_copy
-  report_disagreement
+  cross_check_with_git
   show_new_folders
 }
 
@@ -709,15 +811,14 @@ show_new_php_log_lines() {
   if (($(wc -c <"$after") >= before_size)); then
     new_lines="$(tail -c +"$((before_size + 1))" "$after")"
   else
-    log "the PHP log was started anew during the deploy; all of it is new"
+    line "the PHP log was started anew during the deploy; all of it is new"
     new_lines="$(cat "$after")"
   fi
-  [[ -n "$new_lines" ]] || { log "PHP log: no new lines"; return 0; }
-  log "PHP LOG: $(grep -c . <<<"$new_lines") new line(s) since the deploy started; read them:"
-  local line
-  while IFS= read -r line; do
-    printf '    %s\n' "$line" >&2
-  done <<<"$new_lines"
+  [[ -n "$new_lines" ]] || { line "PHP log: no new lines"; return 0; }
+  line "PHP LOG: $(grep -c . <<<"$new_lines") new line(s) since the deploy started; read them:"
+  local log_lines=()
+  mapfile -t log_lines <<<"$new_lines"
+  printf '    %s\n' "${log_lines[@]}" | indent
 }
 
 # The same read as before the copy, but a failure now is reported, not a refusal: the copy is
@@ -725,7 +826,7 @@ show_new_php_log_lines() {
 read_php_log_after() {
   local target="$1"
   if ! rsync -q -e "$(ssh_command)" "$PLACE_SSH_HOST::$PHP_LOG_FOLDER/$PHP_LOG_NAME" "$target" 2>"$WORK_DIR/log-errors"; then
-    log "could not read $PLACE's PHP log after the deploy: $(tail -n 2 "$WORK_DIR/log-errors" | paste -sd ' ')"
+    line "could not read $PLACE's PHP log after the deploy: $(tail -n 2 "$WORK_DIR/log-errors" | paste -sd ' ')"
     return 1
   fi
 }
@@ -755,12 +856,14 @@ main() {
   trap on_interrupt INT TERM
   acquire_deploy_lock
   prepare_deploy
+  preview_deploy
   confirm
   copy_release
   prove_copy
+  section "After the copy (bin/site-check, the PHP log)"
   write_note
   check_after_copy
-  log "done: ${DEPLOY_COMMIT:0:7} is on $PLACE, and every page passed"
+  section "done: ${DEPLOY_COMMIT:0:7} is on $PLACE, and every page passed"
 }
 
 main "$@"
