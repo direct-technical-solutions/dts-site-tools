@@ -89,7 +89,7 @@ download_leaves_out_check_settings() {
 }
 
 actionlint_plugin_workflows() {
-  docker run --rm -w /repo -v "$PROJECT_DIR/.github:/repo/.github:ro" "$ACTIONLINT_IMAGE" -color
+  actionlint_workflows_of "$PROJECT_DIR"
 }
 
 # The plugin's caller is exactly what bin/tools-pin writes for the release composer.lock installs,

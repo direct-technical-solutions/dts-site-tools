@@ -257,16 +257,9 @@ css_lint() {
     "$PLAYWRIGHT_IMAGE" sh -c 'npm ci --ignore-scripts --no-audit --no-fund --loglevel=error && npx --no-install stylelint --config /lint/stylelint.config.mjs --allow-empty-input "/src/**/*.css"'
 }
 
-# The GitHub workflows (.github/workflows/), checked before they are pushed: a broken workflow
-# would otherwise only show up as a failed run in GitHub.
-# The files are named explicitly: without them, actionlint searches for the .git folder, which
-# the container does not see.
+# The site's GitHub workflows (actionlint_workflows_of, tools/check-lib.sh).
 actionlint_workflows() {
-  local workflow workflows=()
-  for workflow in "$PROJECT_DIR"/.github/workflows/*.yml; do
-    workflows+=(".github/workflows/$(basename "$workflow")")
-  done
-  docker run --rm -w /repo -v "$PROJECT_DIR/.github:/repo/.github:ro" "$ACTIONLINT_IMAGE" -color "${workflows[@]}"
+  actionlint_workflows_of "$PROJECT_DIR"
 }
 
 # The dev site's recipe as Docker Compose reads it: the shared file and the site's own part, written
