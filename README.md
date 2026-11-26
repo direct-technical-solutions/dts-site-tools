@@ -45,6 +45,15 @@ files committed there. The required checks, in the site's branch protection and 
 are the shared workflow's two jobs as GitHub names them when called: `check / check` and
 `check / dev-site`.
 
+**A DTS plugin's repository** requires the tools the same way (its `composer.json` of type
+`wordpress-plugin`, the tools in `require-dev`, the install command above after a fresh clone).
+`bin/tools-pin` writes its one caller, `check.yml`, from `tools/plugin-workflows/`, calling the
+shared `plugin-check.yml`; its required check is the called job as GitHub names it (expected
+`check / check`, as for a site). `bin/plugin-check` runs the same
+checks on the developer's computer. A release: raise the main file's `Version:`, give it its
+section in `CHANGELOG.md`, merge, then `bin/plugin-check --tag v<version>` on the merged `main`
+before pushing the tag, since a pushed tag can be removed only by switching its ruleset off.
+
 The site describes itself in `site.json` (each field explained in
 [`tools/site-settings.md`](tools/site-settings.md)). What each command does:
 [`docs/TOOLS.md`](docs/TOOLS.md). The commands need Docker and `jq`; `bin/deploy` also needs

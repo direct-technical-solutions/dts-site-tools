@@ -117,6 +117,22 @@ site_settings_query() {
   jq -r "$program" "$SITE_SETTINGS_FILE"
 }
 
+# Prints each line of the files and folders given (after the settings file) that names something
+# of the site: a word of the settings file's namesSharedCodeMustNotUse (the site's names and its
+# host's), matched as plain text, whatever its case, as grep prints it ("<file>:<line>:<text>");
+# nothing when none does. Code shared with other sites (the plugins, the tools) must name nothing
+# of any one of them, and each site checks the shared code it uses against its own names
+# (template plan T20, T26).
+site_settings_names_in() {
+  local settings_file="$1" name patterns=()
+  shift
+  while IFS= read -r name; do
+    patterns+=(-e "$name")
+  done < <(jq -r '.namesSharedCodeMustNotUse[]' "$settings_file")
+  ((${#patterns[@]} > 0)) || return 0
+  grep -rniF --exclude-dir=node_modules --exclude=package-lock.json "${patterns[@]}" "$@" || return 0
+}
+
 # Prints a line for each test page in a settings file whose content file is missing from the
 # content folder, starting with the page's address. bin/dev-site refuses to build without them.
 site_settings_missing_test_pages() {
@@ -133,6 +149,28 @@ site_settings_missing_local_plugins() {
   while IFS= read -r plugin_slug; do
     [[ -d "$plugins_dir/$plugin_slug" ]] || printf '%s: listed in localPlugins, but no folder %s/%s\n' "$plugin_slug" "${plugins_dir#"$PROJECT_DIR"/}" "$plugin_slug"
   done < <(jq -r '.localPlugins[]' "$settings_file")
+}
+
+# The docker run arguments that mount the site's own plugins folder read-only at the given path in
+# the container, one per line; none when the site has no plugins/ (a site whose plugins are all
+# downloaded, as a new site from the starter is). Docker's -v creates a missing host folder, owned
+# by root on Linux, so mounting it unconditionally would leave an empty plugins/ in the site.
+site_plugins_mount_arguments() {
+  local plugins_dir="$1" container_path="$2"
+  [[ -d "$plugins_dir" ]] || return 0
+  printf '%s\n' -v "$plugins_dir:$container_path:ro"
+}
+
+# The site's own plugin folders, one per line, without the trailing slash; none when plugins/ is
+# missing or empty. Files beside the folders are not plugins and are left out.
+site_plugin_folders() {
+  local plugins_dir="$1" plugin_folder
+  [[ -d "$plugins_dir" ]] || return 0
+  for plugin_folder in "$plugins_dir"/*/; do
+    # Without nullglob an empty folder leaves the pattern itself, which names no folder.
+    [[ -d "$plugin_folder" ]] && printf '%s\n' "${plugin_folder%/}"
+  done
+  return 0
 }
 
 # A folder as compose.site.yaml names it: relative to the site's repository, where Compose reads

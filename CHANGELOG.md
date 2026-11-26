@@ -8,6 +8,63 @@ change how a site calls the tools.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-26
+
+### Added
+
+- DTS's own plugins as downloaded plugins (template plan T25): a site lists one in
+  `site-packages/composer.json` as `dts/<slug>` at a release tag of its repository
+  `direct-technical-solutions/dts-<slug>`. `bin/check`, `bin/dev-site` and `bin/deploy` accept
+  one only as GitHub's archive of the release commit the lock records, from that repository;
+  `bin/dev-site` and `bin/deploy` also require the download's header to name the pin's version
+  (the tag without its `v`). `bin/deploy`'s pins line, its "never lower" check and its copy
+  cover them, and its downloaded plugins' section names GitHub when one is there. Their updates
+  wait for the user, as before for anything that is not a WordPress.org plugin.
+- `bin/check`, `bin/dev-site` and `bin/deploy` refuse two downloaded plugins sharing one folder,
+  and a plugin both in `localPlugins` and downloaded.
+- `bin/plugin-check`, for a DTS plugin's own repository (template plan T26): Composer's
+  validation and audit, the plugin's file rules (Composer name `dts/<slug>` and type
+  `wordpress-plugin`, main file `<slug>.php` with `Update URI: false`, a plain `Version:` that
+  `CHANGELOG.md`'s newest release names), PHPCS and PHPStan with the plugin's own settings, the
+  check settings left out of the release download (`export-ignore`), actionlint and the caller's
+  pin; `--tag v<version>` also checks a tag names the header's version, before it is pushed and
+  on each tag run. The shared workflow `plugin-check.yml` runs it; a plugin calls it from the
+  `check.yml` that `bin/tools-pin` writes from `tools/plugin-workflows/`.
+- `bin/dev-site` refuses a downloaded DTS plugin that names anything in the site's
+  `namesSharedCodeMustNotUse`, or whose main file lacks `Update URI: false`: each site checks the
+  shared plugins it installs against its own names, as it checks the tools.
+
+### Changed
+
+- `bin/check`'s download check is named "Site packages: every download from its trusted source"
+  (it was "downloads come from WordPress.org") and also refuses plugins the tools cannot install.
+- `bin/test` leaves out the tests of every plugin the dev site does not install, for every site
+  (it did so only for a site other than the tools' own repository's), and names each.
+- The `dev-site` job gives `bin/dev-site` the run's read-only token as `COMPOSER_AUTH`, which
+  `bin/dev-site` and `bin/deploy` pass to `site-packages/`'s Composer when set: DTS's plugins
+  download from GitHub's API, which limits requests without one.
+- `bin/versions-check`'s alert for a release never proposed reads only WordPress.org's plugins.
+- `bin/tools-pin` writes a plugin's caller in a repository whose `composer.json` is of type
+  `wordpress-plugin`, and a site's three callers anywhere else, as before.
+- The plugin header helpers moved from `tools/site-packages.sh` to `tools/plugin-header.sh`, and
+  the names check's word search to `tools/site-settings.sh` (`site_settings_names_in`, given the
+  settings file); a site's own checks that called `shared_code_names_nothing_of_this_site` keep
+  working.
+
+### Fixed
+
+- `bin/dev-site` replaces a downloaded plugin's folder before copying it: a dev site built before
+  a plugin moved from `localPlugins` to a download kept its empty mount point in the files
+  volume, and the copy landed one level too deep, so WordPress did not find the plugin.
+- `bin/check` works for a site without a `plugins/` folder (all its plugins downloaded, as a new
+  site from the starter): it no longer mounts the folder regardless, which made Docker create it
+  owned by root, and the names and "Update URI" checks look only at the plugin folders that
+  exist (the names check says when there are none; the "Update URI" check failed on an empty
+  folder's bare pattern).
+- The dev site's debug log rule counts DTS's downloaded plugins (`dts/*` in
+  `site-packages/composer.lock`) as the site's own code, as they were while in `localPlugins`:
+  a notice from one fails the tests again instead of being only shown.
+
 ## [0.3.1] - 2026-11-26
 
 ### Changed
@@ -107,7 +164,8 @@ change how a site calls the tools.
   PHPCSUtils 1.2.3, PHPCSExtra 1.5.1, PHPStan 2.3.5, PHPStan for WordPress 2.0.4 and the
   WordPress stubs 7.1.2.
 
-[Unreleased]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.1.0...v0.2.0

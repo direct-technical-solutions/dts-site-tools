@@ -62,14 +62,17 @@ in_site_packages() {
     "$COMPOSER_IMAGE" "$@"
 }
 
-# PHPCS and PHPStan: the checkers, their settings and the site's PHP, all read-only.
+# PHPCS and PHPStan: the checkers, their settings and the site's PHP, all read-only; the site's own
+# plugins only where it has a plugins/ folder (site_plugins_mount_arguments).
 in_analysis() {
+  local plugins_mount=()
+  mapfile -t plugins_mount < <(site_plugins_mount_arguments "$PROJECT_DIR/plugins" /app/plugins)
   docker run --rm -w /app \
     -v "$PROJECT_DIR/vendor:/app/vendor:ro" \
     -v "$PROJECT_DIR/phpcs.xml.dist:/app/phpcs.xml.dist:ro" \
     -v "$PROJECT_DIR/phpstan.neon.dist:/app/phpstan.neon.dist:ro" \
     -v "$PROJECT_DIR/themes:/app/themes:ro" \
-    -v "$PROJECT_DIR/plugins:/app/plugins:ro" \
+    "${plugins_mount[@]}" \
     "$COMPOSER_IMAGE" "$@"
 }
 
@@ -86,21 +89,23 @@ load_check_settings() {
   readonly SITE_PHP_PREFIX SITE_THEME_DIR SITE_LOCAL_PLUGINS
 }
 
-# Code shared with other sites (the plugins, the tools) must name nothing of this one: the words in
-# site.json's namesSharedCodeMustNotUse (the site's names and its host's), matched as plain text,
-# whatever their case, in the files and folders given; the repository's rules keep everything else
-# out already. Prints each line found and fails if there is one.
+# Code shared with other sites (the plugins, the tools) must name nothing of this one
+# (site_settings_names_in); prints each line found and fails if there is one.
 shared_code_names_nothing_of_this_site() {
-  local name patterns=()
-  while IFS= read -r name; do
-    patterns+=(-e "$name")
-  done < <(site_settings_query '.namesSharedCodeMustNotUse[]')
-  ((${#patterns[@]} > 0)) || return 0
-  ! grep -rniF --exclude-dir=node_modules --exclude=package-lock.json "${patterns[@]}" "$@"
+  local found
+  found="$(site_settings_names_in "$SITE_SETTINGS_FILE" "$@")"
+  [[ -z "$found" ]] && return 0
+  printf '%s\n' "$found"
+  return 1
 }
 
+# Without folders to search, grep would read its standard input instead, so a site with no plugins
+# of its own passes here, saying so.
 plugins_name_nothing_of_this_site() {
-  shared_code_names_nothing_of_this_site "$PROJECT_DIR/plugins"
+  local plugin_folders=()
+  mapfile -t plugin_folders < <(site_plugin_folders "$PROJECT_DIR/plugins")
+  ((${#plugin_folders[@]} > 0)) || { log "no plugins of the site's own in plugins/: nothing to search"; return 0; }
+  shared_code_names_nothing_of_this_site "${plugin_folders[@]}"
 }
 
 # The tools, which every site shares (template plan 1.2g): the scripts, their helpers and checker
@@ -118,12 +123,12 @@ tools_name_nothing_of_this_site() {
 # with a stranger's (plan step 8b).
 plugins_never_updated_from_wordpress_org() {
   local plugin_folder main_file missing=0
-  for plugin_folder in "$PROJECT_DIR"/plugins/*/; do
-    main_file="$plugin_folder$(basename "$plugin_folder").php"
-    grep -qE '^ \* Update URI: +false$' "$main_file" 2>/dev/null && continue
+  while IFS= read -r plugin_folder; do
+    main_file="$plugin_folder/$(basename "$plugin_folder").php"
+    plugin_never_updated_from_wordpress_org "$main_file" && continue
     log "${main_file#"$PROJECT_DIR"/} has no \"Update URI: false\" header"
     missing=1
-  done
+  done < <(site_plugin_folders "$PROJECT_DIR/plugins")
   return "$missing"
 }
 
@@ -150,13 +155,16 @@ site_json_is_valid() {
   return 1
 }
 
-# Every WordPress.org plugin in site-packages/composer.lock downloads from WordPress.org's own
-# server; the lock file's addresses come from WPackagist, a third party (template plan T8).
-site_packages_downloads_from_wordpress_org() {
+# Every plugin in site-packages/composer.lock is one the tools can install and downloads from its
+# one trusted source: a WordPress.org plugin from WordPress.org's own server (the addresses come
+# from WPackagist, a third party, template plan T8), a DTS plugin as GitHub's archive of its
+# release commit (T25); no two share a folder, and none is also one of the site's own plugins.
+site_packages_downloads_trusted() {
   local problems
-  problems="$(site_packages_download_problems "$SITE_PACKAGES_LOCK")"
+  problems="$(site_packages_unsupported_plugins "$SITE_PACKAGES_LOCK"; site_packages_download_problems "$SITE_PACKAGES_LOCK"
+    site_packages_local_plugin_clashes "$SITE_PACKAGES_LOCK" "${SITE_LOCAL_PLUGINS[@]}")"
   [[ -z "$problems" ]] && return 0
-  log "site-packages/composer.lock downloads from outside WordPress.org:"
+  log "site-packages/composer.lock has plugins the tools do not trust or cannot install:"
   printf '%s\n' "$problems" | sed 's/^/    /' >&2
   return 1
 }
@@ -247,26 +255,21 @@ theme_json_schema_matches_wordpress() {
 # Lints every CSS file of the themes and plugins (plan D29). The linter's folder is writable for
 # npm's node_modules (ignored by git); the code it checks is read-only and mounted outside it, so
 # Docker creates no mount folders inside tools/. An empty set passes, so a theme without
-# stylesheets is not an error.
+# stylesheets is not an error. The site's own plugins only where it has a plugins/ folder.
 css_lint() {
+  local plugins_mount=()
+  mapfile -t plugins_mount < <(site_plugins_mount_arguments "$PROJECT_DIR/plugins" /src/plugins)
   docker run --rm -w /lint \
     -v "$TOOLS_DIR/tools/css-lint:/lint" \
     -v "$PROJECT_DIR/themes:/src/themes:ro" \
-    -v "$PROJECT_DIR/plugins:/src/plugins:ro" \
+    "${plugins_mount[@]}" \
     -v "$NPM_CACHE_VOLUME:/root/.npm" \
     "$PLAYWRIGHT_IMAGE" sh -c 'npm ci --ignore-scripts --no-audit --no-fund --loglevel=error && npx --no-install stylelint --config /lint/stylelint.config.mjs --allow-empty-input "/src/**/*.css"'
 }
 
-# The GitHub workflows (.github/workflows/), checked before they are pushed: a broken workflow
-# would otherwise only show up as a failed run in GitHub.
-# The files are named explicitly: without them, actionlint searches for the .git folder, which
-# the container does not see.
+# The site's GitHub workflows (actionlint_workflows_of, tools/check-lib.sh).
 actionlint_workflows() {
-  local workflow workflows=()
-  for workflow in "$PROJECT_DIR"/.github/workflows/*.yml; do
-    workflows+=(".github/workflows/$(basename "$workflow")")
-  done
-  docker run --rm -w /repo -v "$PROJECT_DIR/.github:/repo/.github:ro" "$ACTIONLINT_IMAGE" -color "${workflows[@]}"
+  actionlint_workflows_of "$PROJECT_DIR"
 }
 
 # The dev site's recipe as Docker Compose reads it: the shared file and the site's own part, written
@@ -284,7 +287,7 @@ run_dependency_checks() {
   run_check "Composer security audit" in_composer_of "$PROJECT_DIR" composer audit --no-interaction
   run_check "Site packages: lock file matches composer.json" in_site_packages composer validate --strict --no-check-all --no-check-publish
   run_check "Site packages: security audit" in_site_packages composer audit --locked --no-interaction
-  run_check "Site packages: downloads come from WordPress.org" site_packages_downloads_from_wordpress_org
+  run_check "Site packages: every download from its trusted source" site_packages_downloads_trusted
   # The tools' packages run on this computer for this site, so the site's weekly run catches an
   # advisory published for the release it uses.
   run_check "npm security audit (browser tests)" npm_audit tests/e2e
@@ -349,7 +352,7 @@ run_tools_self_check_when_own() {
 workflows_call_installed_tools() {
   local release differences
   release="$(tools_pin_locked_release "$PROJECT_DIR/composer.lock")" || return 1
-  differences="$(tools_pin_differences "$PROJECT_DIR/.github/workflows" "${release%% *}" "${release#* }")"
+  differences="$(tools_pin_differences "$SITE_WORKFLOW_TEMPLATES_DIR" "$PROJECT_DIR/.github/workflows" "${release%% *}" "${release#* }")"
   [[ -z "$differences" ]] && return 0
   log "the workflows do not call the installed tools; run bin/tools-pin and commit what it writes:"
   printf '%s\n' "$differences" | sed 's/^/    /' >&2

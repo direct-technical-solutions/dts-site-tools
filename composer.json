@@ -19,6 +19,7 @@
         "bin/check",
         "bin/deploy",
         "bin/dev-site",
+        "bin/plugin-check",
         "bin/screenshots",
         "bin/site-check",
         "bin/test",

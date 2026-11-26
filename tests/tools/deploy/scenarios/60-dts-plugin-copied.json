@@ -1,0 +1,11 @@
+{
+  "description": "Commit B adds DTS's example-release v2.0.0 from its GitHub repository: the section's header names GitHub, the pins line names it added, its line names the release commit and the header's version, and it is copied with the other downloaded plugins, before the site's own code.",
+  "place": "staging",
+  "checks": { "{B}": [["check / check", "success"], ["check / dev-site", "success"]] },
+  "notes": { "example-staging": "{A}" },
+  "dtsPluginInB": true,
+  "expectStatus": 0,
+  "expectOutputNaming": ["The downloaded plugins (git, Composer, WordPress.org, GitHub)", "example-release 2.0.0 added", "example-release 2.0.0: GitHub's archive of direct-technical-solutions/dts-example-release at the release commit 1111111, as composer.lock records; its header says 2.0.0", "plugins/example-download plugins/example-release plugins/example-plugin themes/example-child", "send plugins/example-release/example-release.php"],
+  "expectWrites": ["example-staging::example-download", "example-staging::example-release", "example-staging::example-plugin", "example-staging::example-child", "example-staging::deploy-note"],
+  "expectServerFiles": { "example-staging/example-release/example-release.php": "Version: 2.0.0" }
+}

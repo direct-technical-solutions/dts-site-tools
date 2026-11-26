@@ -7,7 +7,7 @@ if (!baseURL) {
 	throw new Error('DEV_BASE_URL is not set; run the tests through bin/test.');
 }
 
-// The test folders another site leaves out (template plan 1.6c): bin/test names them in
+// The test folders of plugins the dev site does not install (template plan 1.6c, T25): bin/test names them in
 // TESTS_LEFT_OUT, comma-separated and relative to specs/dev/ (such as "site,plugins/song-list"),
 // and logs each, so none is skipped silently. Only letters, digits, dashes and slashes are
 // accepted, so a folder name never becomes a wider pattern.

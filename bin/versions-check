@@ -214,7 +214,9 @@ waiting_update_text() {
 }
 
 # A plugin whose newest release is past the wait and a week's Dependabot run, with no update open:
-# Dependabot has stopped proposing (its run failed, or WPackagist could not be reached).
+# Dependabot has stopped proposing (its run failed, or WPackagist could not be reached). Only
+# WordPress.org's plugins: their releases are read from WordPress.org; DTS's own are released by
+# DTS, whose updates wait for the user anyway (template plan T9, T25).
 check_unproposed_plugins() {
   local is_acting="$1" plugin_slug
   if [[ -n "$(dependabot_plugin_updates)" ]]; then
@@ -223,7 +225,7 @@ check_unproposed_plugins() {
   fi
   while IFS= read -r plugin_slug; do
     check_unproposed_plugin "$is_acting" "$plugin_slug"
-  done < <(site_packages_plugin_slugs "$SITE_PACKAGES_LOCK")
+  done < <(site_packages_wordpress_org_plugin_slugs "$SITE_PACKAGES_LOCK")
 }
 
 check_unproposed_plugin() {

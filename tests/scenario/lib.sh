@@ -15,6 +15,9 @@ source "$TOOLS_DIR/tools/paths.sh"
 # are the tested site's, so a notice from the starter's theme fails as this site's would.
 # shellcheck source=tools/site-settings.sh
 source "$TOOLS_DIR/tools/site-settings.sh"
+# The downloaded plugins' lock file, whose DTS plugins the debug log counts as the site's own code.
+# shellcheck source=tools/site-packages.sh
+source "$TOOLS_DIR/tools/site-packages.sh"
 SCENARIO_NAME="$(basename "${BASH_SOURCE[1]:-scenario}" .sh)"
 readonly SCENARIO_NAME
 
@@ -61,7 +64,7 @@ source "$TOOLS_DIR/tests/scenario/debug-log.sh"
 expect_clean_debug_log() {
   local entries verdicts shown failing
   entries="$(dev_compose exec -T wordpress sh -c "[ -f '$DEBUG_LOG' ] && cat '$DEBUG_LOG' || true")"
-  verdicts="$(debug_log_verdicts "$entries" "$(own_code_places "$SITE_SETTINGS_FILE")")"
+  verdicts="$(debug_log_verdicts "$entries" "$(own_code_places "$SITE_SETTINGS_FILE" "$SITE_PACKAGES_LOCK")")"
   shown="$(sed -n 's/^shown\t//p' <<<"$verdicts")"
   failing="$(sed -n 's/^fail\t//p' <<<"$verdicts")"
   [[ -z "$shown" ]] || log "other people's code wrote to the debug log (shown, not failed):

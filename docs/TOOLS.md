@@ -40,7 +40,10 @@ the other site's `SITE_DIR`. `bin/check` always checks this repository; `bin/dep
   `tools/versions.sh`, the child theme and the site's own plugins (`localPlugins`: Song List,
   Site Hardening, Editing Help) mounted read-only and activated, its downloaded plugins installed
   by Composer from `site-packages/composer.lock` (in the pinned Composer container, which sees only
-  `site-packages/`), copied in and checked against WordPress.org's checksums: Contact Form 7
+  `site-packages/`; given `COMPOSER_AUTH` when it is set), copied in and checked: WordPress.org's
+  against WordPress.org's checksums, DTS's own (`dts/<slug>`, template plan T25) by their release
+  commit in the lock and their header's version, which must be the pin's, and as shared code
+  (T26): naming nothing in the site's `namesSharedCodeMustNotUse`, with `Update URI: false`: Contact Form 7
   with the real booking form from `config/booking-form.txt` and `config/booking-form-mail.json`,
   and its messages after sending ("sent" and "sending failed") from
   `config/booking-form-messages.json` (merged into Contact Form 7's own messages; staging and live
@@ -62,7 +65,8 @@ the other site's `SITE_DIR`. `bin/check` always checks this repository; `bin/dep
   `generic/`, `components/` and `plugins/<plugin>/`; the browser tests' shared helpers in
   `helpers/`), so each group can later go with its own repository, and the site's own browser
   specs in its `tests/browser/`, mounted read-only into `tests/e2e/specs/dev/site/` (template plan
-  T19; a site without that folder has none, which `bin/test` says): the
+  T19; a site without that folder has none, which `bin/test` says; the tests of a plugin the dev
+  site does not install, own or downloaded, are left out and named, T25): the
   scenario checks named `tests/scenario/<group>/dev-*.sh` (bash, sharing `lib.sh`: read-only theme and plugin mounts, the
   PHP debug log's rule (`tests/scenario/debug-log.sh`, template plan 1.5b: any message from the
   site's own code, and any fatal error, fails; other people's notices, warnings and deprecations
@@ -114,8 +118,10 @@ the other site's `SITE_DIR`. `bin/check` always checks this repository; `bin/dep
   containers see only the files their step needs, never `.env`, `db/`, `backups/` or
   `wordpress/`; `composer.lock` is read-only to them.
   - **The site's checks:** Composer install from `composer.lock`, validation and security audit;
-    the site's downloaded plugins (`site-packages/`: lock file, audit, downloads only from
-    `downloads.wordpress.org`); PHPCS with the WordPress Coding Standards (`phpcs.xml.dist`) and
+    the site's downloaded plugins (`site-packages/`: lock file, audit, each download from its one
+    trusted source: WordPress.org's plugins from `downloads.wordpress.org`, DTS's as GitHub's
+    archive of the release commit from their own repository in DTS's organization; no two
+    plugins in one folder, none also in `localPlugins`); PHPCS with the WordPress Coding Standards (`phpcs.xml.dist`) and
     PHPStan at level max with the WordPress 7.1 stubs (`phpstan.neon.dist`), both over `themes/`
     and `plugins/` (each plugin with its own PHPCS ruleset); the plugins and the tools (`bin/`,
     `tools/`, the workflows, the shared compose file, settings example and dev-only must-use
@@ -174,7 +180,11 @@ the other site's `SITE_DIR`. `bin/check` always checks this repository; `bin/dep
 - `site-packages/`: the downloaded plugins the site runs (template plan T8), WordPress.org's
   through WPackagist, at exact versions in `composer.json`, with `composer.lock` recording the
   download addresses (all on `downloads.wordpress.org`, which `bin/check` and `bin/dev-site`
-  require). Separate from the top-level `composer.json`, which holds only the code-checking tools.
+  require). DTS's own plugins (template plan T25) are listed there too, as `dts/<slug>` at a
+  release tag of their repository `direct-technical-solutions/dts-<slug>`; the lock records the
+  tag's commit and GitHub's archive of it, which `bin/check`, `bin/dev-site` and `bin/deploy`
+  require, since GitHub publishes no checksums for its archives. Their updates wait for the user,
+  as every change that is not a WordPress.org plugin does. Separate from the top-level `composer.json`, which holds only the code-checking tools.
   Dependabot proposes the plugins' updates weekly, a release at least 7 days old, in one pull
   request (`.github/dependabot.yml`), which merges itself by squash, keeping Dependabot's own
   commit message, once its checks pass
@@ -211,9 +221,10 @@ the other site's `SITE_DIR`. `bin/check` always checks this repository; `bin/dep
   commit with the same files, and on live unless staging runs that commit; it reads the place's
   note on the server and shows the commits arriving or taken away. Before asking "yes", it exports
   the commit, builds its downloaded plugins from its `composer.lock` (the pinned Composer
-  container) and checks every file against WordPress.org's checksum file (a changed or added
-  file refuses; one listed but missing from the download is shown, not refused, as WP-CLI's
-  check on the dev site does, 1.5b), checks each folder
+  container) and checks every file of a WordPress.org plugin against WordPress.org's checksum
+  file (a changed or added file refuses; one listed but missing from the download is shown, not
+  refused, as WP-CLI's check on the dev site does, 1.5b) and a DTS plugin by its release commit
+  and its header's version (template plan T25; the section's header then names GitHub), checks each folder
   exists on the server for the key, and refuses to lower a downloaded plugin the host updated
   unless `--allow-lower` names it. What it shows comes straight from git and rsync as they print
   it (template plan T23, T24, 2.1e), in five sections, each a header with its time and source and
@@ -289,7 +300,23 @@ the other site's `SITE_DIR`. `bin/check` always checks this repository; `bin/dep
   leave alone: Playwright (raised together with its image in `tools/versions.sh`) and the
   versions held back on purpose, each raised in its manifest first. Then the self-check
   (`tests/tools/check-tools.sh`), the lock files' diff reviewed line by line, commit.
-- `bin/tools-pin` (template plan 2.1c, T22): writes the site's `.github/workflows/check.yml`,
+- `bin/plugin-check` (template plan T25, T26), in a DTS plugin's own repository, which requires
+  the tools in `require-dev` as a site does: every check the plugin must pass, the same on the
+  developer's computer and in its `check` workflow (`.github/workflows/plugin-check.yml` here).
+  Composer's validation and audit; the plugin's file rules (`tools/plugin-rules.sh`): its
+  Composer name `dts/<slug>` and type `wordpress-plugin`, its main file `<slug>.php` with
+  `Update URI: false` and a plain `Version:`, which `CHANGELOG.md`'s newest release must name;
+  PHPCS and PHPStan with the plugin's own `phpcs.xml.dist` and `phpstan.neon.dist`; the check
+  settings, `composer.lock`, `.github` and `.gitattributes` left out of the release download
+  (`export-ignore`); actionlint; and the caller pinned to the installed tools.
+  `bin/plugin-check --tag v<version>` also checks a tag names the header's version: run before
+  tagging, since a pushed tag can be removed only by switching its ruleset off; the workflow
+  runs it on each tag as well. Whether the plugin names nothing of a site is checked by each
+  site that installs it (`bin/dev-site`, below), against its own `site.json`, so no list of
+  sites' names is kept in a public repository (T20).
+- `bin/tools-pin` (template plan 2.1c, T22, T26): in a DTS plugin's repository (its
+  `composer.json` of type `wordpress-plugin`) writes its `check.yml` from
+  `tools/plugin-workflows/`, which `bin/plugin-check` holds the same way; in a site's, writes the site's `.github/workflows/check.yml`,
   `versions.yml` and `plugin-updates.yml` from `tools/site-workflows/`, each calling a shared
   workflow (`.github/workflows/site-*.yml` here) pinned to the commit of the tools release the
   site's `composer.lock` installs; it refuses a lock file without the tools, with a short commit

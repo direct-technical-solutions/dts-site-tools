@@ -66,8 +66,12 @@ jobs:
           composer:2.11.1 composer install --no-interaction --no-progress
 
       # No backup and no secrets needed: bin/dev-site creates a fresh .env with new random
-      # secrets on this machine, which never leaves it.
+      # secrets on this machine, which never leaves it. DTS's plugins arrive as GitHub's zips too,
+      # so the run's read-only token is given to this step as well; bin/dev-site passes it to
+      # site-packages/'s Composer alone (template plan T25).
       - name: Build the dev site (bin/dev-site)
+        env:
+          COMPOSER_AUTH: '{"github-oauth": {"github.com": "${{ github.token }}"}}'
         run: bin/dev-site
 
       - name: Test the dev site (bin/test)

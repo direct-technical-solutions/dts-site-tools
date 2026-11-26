@@ -1,0 +1,129 @@
+#!/usr/bin/env bash
+# Runs every check a DTS plugin's repository must pass (template plan T25, T26), the same on the
+# developer's computer and in the plugin's check workflow (plugin-check.yml): installing the PHP
+# checkers at the versions in composer.lock, Composer's validation and security audit, the
+# plugin's file rules (tools/plugin-rules.sh: its Composer name and type, its main file, its
+# header, the changelog's newest release), the WordPress Coding Standards (PHPCS) and static
+# analysis (PHPStan) with the plugin's own settings, the release download leaving out the check
+# settings, the workflows (actionlint) and that they call the installed tools (bin/tools-pin).
+#
+#   bin/plugin-check                 every check
+#   bin/plugin-check --tag v1.2.3    and the tag names the plugin's version: run before tagging
+#
+# Whether the plugin names nothing of a site is checked by each site that installs it, against
+# that site's own names (bin/dev-site), so no list of sites' names is kept in a public repository
+# (template plan T20, T26). The checkers run in pinned containers; only Docker, jq and git are
+# needed on the host (git reads .gitattributes as GitHub's archive does). Every check runs even
+# after a failure; the exit status is 1 if any failed.
+set -Euo pipefail
+
+TOOLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+readonly TOOLS_DIR
+# shellcheck source=tools/paths.sh
+source "$TOOLS_DIR/tools/paths.sh"
+# shellcheck source=tools/versions.sh
+source "$TOOLS_DIR/tools/versions.sh"
+readonly CHECK_LOG_NAME="plugin-check"
+# One download cache for every plugin's checks on this computer; a plugin has no site slug to
+# name one from.
+readonly COMPOSER_CACHE_VOLUME="dts-plugin_composer_cache"
+# shellcheck source=tools/check-lib.sh
+source "$TOOLS_DIR/tools/check-lib.sh"
+# shellcheck source=tools/plugin-rules.sh
+source "$TOOLS_DIR/tools/plugin-rules.sh"
+# shellcheck source=tools/tools-pin.sh
+source "$TOOLS_DIR/tools/tools-pin.sh"
+
+RELEASE_TAG=""
+
+usage_error() {
+  log "$1"
+  log "usage: bin/plugin-check [--tag v<version>]"
+  exit 1
+}
+
+read_arguments() {
+  (($# == 0)) && return 0
+  [[ "$1" == "--tag" && $# -eq 2 && -n "$2" ]] || usage_error "unexpected arguments: $*"
+  RELEASE_TAG="$2"
+}
+
+# PHPCS and PHPStan: the plugin's repository read-only, the installed checkers in its vendor/
+# among it. A plugin's repository holds no secrets (no .env), so the whole folder is mounted.
+in_plugin_analysis() {
+  docker run --rm -w /app -v "$PROJECT_DIR:/app:ro" "$COMPOSER_IMAGE" "$@"
+}
+
+# The checkers' settings are the plugin's own; without them PHPCS would fall back to its default
+# standard and PHPStan to no paths, both checking something other than intended.
+settings_file_present() {
+  [[ -f "$PROJECT_DIR/$1" ]] && return 0
+  log "$1 is missing: the plugin keeps its own settings for this checker"
+  return 1
+}
+
+coding_standards() {
+  settings_file_present phpcs.xml.dist || return 1
+  in_plugin_analysis php "$PHPCS_ENTRY" --standard=phpcs.xml.dist
+}
+
+static_analysis() {
+  settings_file_present phpstan.neon.dist || return 1
+  in_plugin_analysis php "$PHPSTAN_ENTRY" analyse -c phpstan.neon.dist --no-progress --memory-limit=1G
+}
+
+plugin_files_follow_rules() {
+  local problems
+  problems="$(plugin_rules_problems "$PROJECT_DIR" "$RELEASE_TAG")"
+  [[ -z "$problems" ]] && return 0
+  printf '%s\n' "$problems" | sed 's/^/    /' >&2
+  return 1
+}
+
+download_leaves_out_check_settings() {
+  local problems
+  problems="$(plugin_download_problems "$PROJECT_DIR")"
+  [[ -z "$problems" ]] && return 0
+  printf '%s\n' "$problems" | sed 's/^/    /' >&2
+  return 1
+}
+
+actionlint_plugin_workflows() {
+  actionlint_workflows_of "$PROJECT_DIR"
+}
+
+# The plugin's caller is exactly what bin/tools-pin writes for the release composer.lock installs,
+# so the workflow's commit and Composer's pin cannot drift apart (template plan T18, T22).
+workflow_calls_installed_tools() {
+  local release differences
+  release="$(tools_pin_locked_release "$PROJECT_DIR/composer.lock")" || return 1
+  differences="$(tools_pin_differences "$PLUGIN_WORKFLOW_TEMPLATES_DIR" "$PROJECT_DIR/.github/workflows" "${release%% *}" "${release#* }")"
+  [[ -z "$differences" ]] && return 0
+  log "the workflow does not call the installed tools; run bin/tools-pin and commit what it writes:"
+  printf '%s\n' "$differences" | sed 's/^/    /' >&2
+  return 1
+}
+
+require_lock_file() {
+  [[ -f "$PROJECT_DIR/composer.lock" ]] && return 0
+  log "composer.lock is missing: it is committed with composer.json; Composer writes it (composer update, in the pinned container the README's install command uses)"
+  exit 1
+}
+
+main() {
+  read_arguments "$@"
+  require_jq
+  require_lock_file
+  run_check "Install the PHP checkers (composer.lock)" in_composer_of "$PROJECT_DIR" composer install --no-interaction --no-progress
+  run_check "Composer validation" in_composer_of "$PROJECT_DIR" composer validate --strict --no-check-publish
+  run_check "Composer security audit" in_composer_of "$PROJECT_DIR" composer audit --no-interaction
+  run_check "The plugin's files follow the rules${RELEASE_TAG:+ (and tag $RELEASE_TAG)}" plugin_files_follow_rules
+  run_check "WordPress Coding Standards (PHPCS)" coding_standards
+  run_check "Static analysis (PHPStan)" static_analysis
+  run_check "The release download leaves out the check settings" download_leaves_out_check_settings
+  run_check "GitHub workflows (actionlint)" actionlint_plugin_workflows
+  run_check "The workflow calls the installed tools (bin/tools-pin)" workflow_calls_installed_tools
+  report
+}
+
+main "$@"

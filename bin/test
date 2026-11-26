@@ -17,6 +17,8 @@ source "$TOOLS_DIR/tools/versions.sh"
 source "$TOOLS_DIR/tools/site-settings.sh"
 # shellcheck source=tools/dev-site-guard.sh
 source "$TOOLS_DIR/tools/dev-site-guard.sh"
+# shellcheck source=tools/site-packages.sh
+source "$TOOLS_DIR/tools/site-packages.sh"
 
 FAILED_TESTS=()
 # Scenario checks that need this repository's own site, relative to tests/scenario/, each with its
@@ -44,19 +46,19 @@ site_answers() {
   return 1
 }
 
-# The tests that belong to another site than the one tested (template plan 1.6c, T14; the rule
-# 2.1 sets for the shared tests): for a site other than this repository's (SITE_DIR), the tests of
-# this repository's own plugins the site does not list in localPlugins. One folder per line;
-# nothing for this repository's site. A site's own browser specs need no entry: they come from
-# the site tested (SITE_BROWSER_SPECS_DIR, template plan T19).
+# The tests of plugins the dev site does not install (template plan 1.6c, T14; T25): each
+# plugins/<slug> test folder, in either test group, whose plugin is neither one of the site's own
+# (site.json's localPlugins) nor downloaded (site-packages/composer.lock, WordPress.org's and
+# DTS's alike, as bin/dev-site installs them). One folder per line. A site's own browser specs
+# need no entry: they come from the site tested (SITE_BROWSER_SPECS_DIR, template plan T19).
 left_out_test_folders() {
-  local plugin_dir plugin_slug listed_plugins
-  is_this_repository_site && return 0
-  listed_plugins="$(site_settings_query '.localPlugins[]')"
-  for plugin_dir in "$PROJECT_DIR"/plugins/*/; do
+  local plugin_dir plugin_slug installed_plugins
+  installed_plugins="$(site_settings_query '.localPlugins[]'; site_packages_plugin_slugs "$SITE_PACKAGES_LOCK")"
+  for plugin_dir in "$TOOLS_DIR"/tests/scenario/plugins/*/ "$TOOLS_DIR"/tests/e2e/specs/dev/plugins/*/; do
+    [[ -d "$plugin_dir" ]] || continue
     plugin_slug="$(basename "$plugin_dir")"
-    grep -qxF "$plugin_slug" <<<"$listed_plugins" || printf 'plugins/%s\n' "$plugin_slug"
-  done
+    grep -qxF "$plugin_slug" <<<"$installed_plugins" || printf 'plugins/%s\n' "$plugin_slug"
+  done | sort -u
 }
 
 # Stops before any test when the dev site running is another site's (template plan 1.6c-2): its
@@ -77,10 +79,10 @@ log_left_out_folders() {
   local folder entry
   [[ -d "$SITE_BROWSER_SPECS_DIR" ]] ||
     log "No browser specs of the site's own: no ${SITE_BROWSER_SPECS_DIR#"$PROJECT_DIR"/}/"
-  is_this_repository_site && return 0
   for folder in "${LEFT_OUT_FOLDERS[@]}"; do
-    log "Left out: $folder/, a plugin ${SITE_DIR#"$PROJECT_DIR"/} does not list"
+    log "Left out: the tests in $folder/, a plugin the dev site does not install"
   done
+  is_this_repository_site && return 0
   for entry in "${THIS_SITE_ONLY_SCENARIOS[@]}"; do
     log "Left out: tests/scenario/${entry%%:*}, as ${entry#*:}"
   done

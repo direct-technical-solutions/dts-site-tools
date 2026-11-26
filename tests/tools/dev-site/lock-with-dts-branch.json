@@ -1,0 +1,20 @@
+{
+  "packages": [
+    {
+      "name": "dts/example-release",
+      "version": "dev-main",
+      "type": "wordpress-plugin",
+      "source": {
+        "type": "git",
+        "url": "https://github.com/direct-technical-solutions/dts-example-release.git",
+        "reference": "main"
+      },
+      "dist": {
+        "type": "zip",
+        "url": "https://api.github.com/repos/direct-technical-solutions/dts-example-release/zipball/main",
+        "reference": "main",
+        "shasum": ""
+      }
+    }
+  ]
+}

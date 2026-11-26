@@ -1,0 +1,11 @@
+{
+  "description": "DTS's plugin newer on the server (2.10.0) than its tag's version (2.0.0): refused as for WordPress.org's plugins, naming both versions and --allow-lower, nothing copied.",
+  "place": "staging",
+  "checks": { "{B}": [["check / check", "success"], ["check / dev-site", "success"]] },
+  "notes": { "example-staging": "{A}" },
+  "dtsPluginInB": true,
+  "dtsServerVersion": { "example-staging": "2.10.0" },
+  "expectStatus": 1,
+  "expectOutputNaming": ["example-release is 2.10.0 on staging, newer than the 2.0.0 pinned", "--allow-lower example-release"],
+  "expectWrites": []
+}

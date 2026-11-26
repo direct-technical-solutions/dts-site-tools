@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# What a site's checks (bin/check) and the tools' self-check (tests/tools/check-tools.sh) share
-# (template plan T20): the runner that keeps going after a failure and reports at the end, and the
-# checks both run on packages they both use (Composer, npm). Sourced, never run; the sourcing
-# script defines TOOLS_DIR, CHECK_LOG_NAME (the name its log lines carry) and, before using the
-# containers, COMPOSER_CACHE_VOLUME and NPM_CACHE_VOLUME, and sources tools/versions.sh. A site's own checks
+# What a site's checks (bin/check), a DTS plugin's (bin/plugin-check, template plan T26) and the
+# tools' self-check (tests/tools/check-tools.sh) share (template plan T20): the runner that keeps
+# going after a failure and reports at the end, and the checks they run on packages and workflows
+# alike (Composer, npm, actionlint). Sourced, never run; the sourcing script defines TOOLS_DIR,
+# CHECK_LOG_NAME (the name its log lines carry) and, before using the containers,
+# COMPOSER_CACHE_VOLUME and NPM_CACHE_VOLUME, and sources tools/versions.sh. A site's own checks
 # (tests/checks/*.sh) may use run_check, log, PHPCS_ENTRY and PHPSTAN_ENTRY.
 
 FAILED_CHECKS=()
@@ -62,6 +63,19 @@ in_composer_of() {
     -v "$composer_dir/vendor:/app/vendor" \
     -v "$COMPOSER_CACHE_VOLUME:/tmp/composer-cache" -e COMPOSER_CACHE_DIR=/tmp/composer-cache \
     "$COMPOSER_IMAGE" "$@"
+}
+
+# A repository's GitHub workflows (.github/workflows/), checked before they are pushed: a broken
+# workflow would otherwise only show up as a failed run in GitHub. Used by a site's bin/check and a
+# plugin's bin/plugin-check. The files are named explicitly: without them, actionlint searches for
+# the .git folder, which the container does not see (bin/plugin-check left them out at first, and
+# actionlint found no project).
+actionlint_workflows_of() {
+  local repository_dir="$1" workflow workflows=()
+  for workflow in "$repository_dir"/.github/workflows/*.yml; do
+    workflows+=(".github/workflows/$(basename "$workflow")")
+  done
+  docker run --rm -w /repo -v "$repository_dir/.github:/repo/.github:ro" "$ACTIONLINT_IMAGE" -color "${workflows[@]}"
 }
 
 # Known vulnerabilities in one of the tools' npm packages' locked dependencies (tests/e2e,
