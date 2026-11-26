@@ -31,8 +31,10 @@
 # "{A}": the site's own folders on both servers hold exactly its files, dated long ago);
 # serverExtraFiles ({"<short name>/<folder>/<file>": text}, put there by hand);
 # phpLogExtraFile; noPageCheckLogin; lockHeld (another deploy holding the lock); pageCheckFails,
-# pageCheckAddsLogLines, logStartsAnew (played by the stand-in page check);
-# expectStatus; expectOutputNaming; expectOutputLacking; expectPageCheck ("<address>\tuser=<user>\t
+# pageCheckAddsLogLines, logStartsAnew (played by the stand-in page check); pinnedInA ({slug:
+# version}, what commit A's composer.lock pins instead of example-download 1.1.0);
+# expectStatus; expectOutputNaming; expectOutputLacking; expectOutputInOrder (texts on ever later
+# lines of the output); expectPageCheck ("<address>\tuser=<user>\t
 # password=<password>", as the stand-in records it); expectNoPageCheck; expectWrites (every copy, in order, "<short name>::<folder>",
 # [] for none); expectServerFiles ({"<short name>/<folder>/<file>": text it holds});
 # expectServerLacking ({"<short name>/<folder>/<file>": text it must not hold}); expectServerMissing
@@ -70,9 +72,12 @@ make_repository() {
     "$TOOLS_DIR/tools/site-packages.sh" "$TOOLS_DIR/tools/versions.sh" "$work/repo/tools/"
   site_settings_for "$scenario" >"$work/repo/site.json"
   write_site_code "$work/repo"
+  # pinnedInA: commit A's lock pins other plugins or versions; B pins the usual one.
+  jq -e 'has("pinnedInA")' "$scenario" >/dev/null && write_lock_file "$work/repo" "$(jq -c '.pinnedInA' "$scenario")"
   in_git -C "$work/repo" add -A && in_git -C "$work/repo" commit -qm "A: the site"
   printf 'a change\n' >"$work/repo/change.txt"
   printf '/* B */\n' >>"$work/repo/themes/example-child/style.css"
+  write_lock_file "$work/repo" "{\"$DOWNLOADED_PLUGIN\": \"$PINNED_VERSION\"}"
   in_git -C "$work/repo" add -A && in_git -C "$work/repo" commit -qm "B: a change"
   in_git -C "$work/repo" remote add origin "$work/origin.git"
   in_git -C "$work/repo" push -q origin main
@@ -87,9 +92,15 @@ write_site_code() {
   printf '/* Theme Name: Example Child */\n' >"$repo/themes/example-child/style.css"
   printf '<?php\n/**\n * Plugin Name: Example Plugin\n */\n' >"$repo/plugins/example-plugin/example-plugin.php"
   printf '{"require": {"wpackagist-plugin/%s": "%s"}}\n' "$DOWNLOADED_PLUGIN" "$PINNED_VERSION" >"$repo/site-packages/composer.json"
-  jq -n --arg slug "$DOWNLOADED_PLUGIN" --arg version "$PINNED_VERSION" '{packages: [{
-    name: "wpackagist-plugin/\($slug)", version: $version, type: "wordpress-plugin",
-    dist: {type: "zip", url: "https://downloads.wordpress.org/plugin/\($slug).\($version).zip"}}]}' >"$repo/site-packages/composer.lock"
+  write_lock_file "$repo" "{\"$DOWNLOADED_PLUGIN\": \"$PINNED_VERSION\"}"
+}
+
+# site-packages/composer.lock pinning the plugins given as {slug: version}.
+write_lock_file() {
+  local repo="$1" pins="$2"
+  jq -n --argjson pins "$pins" '{packages: [$pins | to_entries[] | {
+    name: "wpackagist-plugin/\(.key)", version: .value, type: "wordpress-plugin",
+    dist: {type: "zip", url: "https://downloads.wordpress.org/plugin/\(.key).\(.value).zip"}}]}' >"$repo/site-packages/composer.lock"
 }
 
 site_settings_for() {
@@ -358,12 +369,24 @@ outcome_problems() {
   while IFS= read -r naming; do
     ! grep -qF -- "$naming" "$work/output.txt" || printf 'its output shows %s, which it must not\n' "$naming"
   done < <(jq -r '.expectOutputLacking // [] | .[]' "$situation")
+  order_problems "$work"
   while IFS= read -r naming; do
     naming="${naming//\{work\}/$work}"
     grep -qF -- "$naming" "$work/services/remote-shells.txt" 2>/dev/null || printf 'ssh was not run with %s\n' "$naming"
   done < <(jq -r '.expectSshNaming // [] | .[]' "$situation")
   server_problems "$work"
   page_check_problems "$work"
+}
+
+# expectOutputInOrder: each text on a later line of the output than the one before it, so what
+# is shown before "yes" and what after cannot change places unnoticed.
+order_problems() {
+  local work="$1" naming position=0 found
+  while IFS= read -r naming; do
+    found="$(grep -nF -- "$naming" "$work/output.txt" | awk -F: -v after="$position" '$1 > after { print $1; exit }')"
+    [[ -n "$found" ]] || { printf 'its output does not name %s after line %s (expectOutputInOrder)\n' "$naming" "$position"; return 0; }
+    position="$found"
+  done < <(jq -r '.expectOutputInOrder // [] | .[]' "$work/situation.json")
 }
 
 # How the page check was run: the address and login it was given, or that it never ran.

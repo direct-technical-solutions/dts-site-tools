@@ -1,12 +1,13 @@
 {
-  "description": "A file appearing in the site's plugin on the server just after its copy: the second dry run lists it, the deploy stops, writes no note and runs no page check.",
+  "description": "A file appearing in the site's plugin on the server just after its copy: the second dry run lists it by its path, the deploy stops, writes no note and runs no page check.",
   "place": "staging",
   "checks": { "{B}": [["check / check", "success"], ["check / dev-site", "success"]] },
   "notes": { "example-staging": "{A}" },
   "serverHolds": "{A}",
   "plantAfterCopy": "example-plugin",
   "expectStatus": 1,
-  "expectOutputNaming": ["example-plugin: still differs after the copy:", "planted-on-the-server.txt", "no note was written", "mix"],
+  "expectOutputNaming": ["the second dry run still lists:", "del. plugins/example-plugin/planted-on-the-server.txt", "no note was written", "mix"],
+  "expectOutputInOrder": ["the second dry run still lists:", "del. plugins/example-plugin/planted-on-the-server.txt", "REFUSED"],
   "expectWrites": ["example-staging::example-download", "example-staging::example-plugin", "example-staging::example-child"],
   "expectServerFiles": { "example-staging/deploy-note/deployed-commit": "{A}" },
   "expectNoPageCheck": true

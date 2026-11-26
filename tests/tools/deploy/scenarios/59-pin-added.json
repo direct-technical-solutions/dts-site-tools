@@ -1,0 +1,9 @@
+{
+  "description": "Commit A pinned no plugin: the pins line names example-download as added.",
+  "place": "staging",
+  "checks": { "{B}": [["check / check", "success"], ["check / dev-site", "success"]] },
+  "notes": { "example-staging": "{A}" },
+  "pinnedInA": {},
+  "expectStatus": 0,
+  "expectOutputNaming": ["pins changed since {A7} (git: site-packages/composer.lock): example-download 1.1.0 added"]
+}

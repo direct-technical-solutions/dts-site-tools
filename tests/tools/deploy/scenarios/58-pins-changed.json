@@ -1,0 +1,10 @@
+{
+  "description": "Commit A pinned example-download 1.0.0 and a plugin since taken out: the pins line names the raised version and the plugin taken out, whose folder the deploy does not touch.",
+  "place": "staging",
+  "checks": { "{B}": [["check / check", "success"], ["check / dev-site", "success"]] },
+  "notes": { "example-staging": "{A}" },
+  "pinnedInA": { "example-download": "1.0.0", "example-gone": "2.0.0" },
+  "expectStatus": 0,
+  "expectOutputNaming": ["pins changed since {A7} (git: site-packages/composer.lock): example-download 1.0.0 → 1.1.0, example-gone 2.0.0 taken out of the pins (its folder on the server is left as it is)"],
+  "expectOutputLacking": ["pins unchanged"]
+}

@@ -1,11 +1,12 @@
 {
-  "description": "The server holds exactly the commit its note names: git lists the theme's changed file, rsync's dry run lists the same, unchanged folders show none, no disagreement is said, the copy matches the preview and the proof lists nothing.",
+  "description": "The server holds exactly the commit its note names: the sections in order, the pins unchanged, the scope line naming every folder copied, rsync's one list naming the theme's changed file by its path and nothing of the unchanged site plugin, git agreeing on that file, the copy matching the preview and the proof listing nothing.",
   "place": "staging",
   "checks": { "{B}": [["check / check", "success"], ["check / dev-site", "success"]] },
   "notes": { "example-staging": "{A}" },
   "serverHolds": "{A}",
   "expectStatus": 0,
-  "expectOutputNaming": ["git diff --name-only --no-renames {A7} {B7} -- plugins/example-plugin themes/example-child):", "themes/example-child/style.css", "example-plugin: none", "the copy matches the preview", "proof: a second dry run lists nothing in any folder", "deployed-commit rewritten to name {B7}"],
-  "expectOutputLacking": ["disagree", "change(s)", "copies, in order"],
+  "expectOutputNaming": ["pins unchanged since {A7} (git: site-packages/composer.lock)", "compared, and the only folders copied (the commit's site.json and site-packages/composer.lock): plugins/example-download plugins/example-plugin themes/example-child", "fcsT...... send themes/example-child/style.css", "git agrees (since {A7}): themes/example-child/style.css", "deploy-note/deployed-commit: rewritten to name {B7}", "the copy matches the preview", "proof: a second dry run lists nothing in any folder"],
+  "expectOutputLacking": ["disagree", "plugins/example-plugin/", "no file will change", "no file changed", "change(s)", "copies, in order"],
+  "expectOutputInOrder": ["What goes out (git, GitHub)", "staging runs {A7}; these commits arrive:", "The downloaded plugins", "What rsync will change on staging, before \"yes\"", "send themes/example-child/style.css", "git agrees", "Type yes to go on", "What rsync changed on staging", "send themes/example-child/style.css", "the copy matches the preview", "proof: a second dry run lists nothing", "After the copy", "staging now runs commit: {B7}", "done: {B7} is on staging"],
   "expectServerFiles": { "example-staging/deploy-note/deployed-commit": "{B}", "example-staging/example-child/style.css": "/* B */" }
 }
