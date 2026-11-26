@@ -151,6 +151,28 @@ site_settings_missing_local_plugins() {
   done < <(jq -r '.localPlugins[]' "$settings_file")
 }
 
+# The docker run arguments that mount the site's own plugins folder read-only at the given path in
+# the container, one per line; none when the site has no plugins/ (a site whose plugins are all
+# downloaded, as a new site from the starter is). Docker's -v creates a missing host folder, owned
+# by root on Linux, so mounting it unconditionally would leave an empty plugins/ in the site.
+site_plugins_mount_arguments() {
+  local plugins_dir="$1" container_path="$2"
+  [[ -d "$plugins_dir" ]] || return 0
+  printf '%s\n' -v "$plugins_dir:$container_path:ro"
+}
+
+# The site's own plugin folders, one per line, without the trailing slash; none when plugins/ is
+# missing or empty. Files beside the folders are not plugins and are left out.
+site_plugin_folders() {
+  local plugins_dir="$1" plugin_folder
+  [[ -d "$plugins_dir" ]] || return 0
+  for plugin_folder in "$plugins_dir"/*/; do
+    # Without nullglob an empty folder leaves the pattern itself, which names no folder.
+    [[ -d "$plugin_folder" ]] && printf '%s\n' "${plugin_folder%/}"
+  done
+  return 0
+}
+
 # A folder as compose.site.yaml names it: relative to the site's repository, where Compose reads
 # the recipe, when the folder is inside it (the file then names no home folder); absolute
 # otherwise, as the tools' own folder is once they are installed apart (template plan T19).

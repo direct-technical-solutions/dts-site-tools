@@ -62,14 +62,17 @@ in_site_packages() {
     "$COMPOSER_IMAGE" "$@"
 }
 
-# PHPCS and PHPStan: the checkers, their settings and the site's PHP, all read-only.
+# PHPCS and PHPStan: the checkers, their settings and the site's PHP, all read-only; the site's own
+# plugins only where it has a plugins/ folder (site_plugins_mount_arguments).
 in_analysis() {
+  local plugins_mount=()
+  mapfile -t plugins_mount < <(site_plugins_mount_arguments "$PROJECT_DIR/plugins" /app/plugins)
   docker run --rm -w /app \
     -v "$PROJECT_DIR/vendor:/app/vendor:ro" \
     -v "$PROJECT_DIR/phpcs.xml.dist:/app/phpcs.xml.dist:ro" \
     -v "$PROJECT_DIR/phpstan.neon.dist:/app/phpstan.neon.dist:ro" \
     -v "$PROJECT_DIR/themes:/app/themes:ro" \
-    -v "$PROJECT_DIR/plugins:/app/plugins:ro" \
+    "${plugins_mount[@]}" \
     "$COMPOSER_IMAGE" "$@"
 }
 
@@ -96,8 +99,13 @@ shared_code_names_nothing_of_this_site() {
   return 1
 }
 
+# Without folders to search, grep would read its standard input instead, so a site with no plugins
+# of its own passes here, saying so.
 plugins_name_nothing_of_this_site() {
-  shared_code_names_nothing_of_this_site "$PROJECT_DIR/plugins"
+  local plugin_folders=()
+  mapfile -t plugin_folders < <(site_plugin_folders "$PROJECT_DIR/plugins")
+  ((${#plugin_folders[@]} > 0)) || { log "no plugins of the site's own in plugins/: nothing to search"; return 0; }
+  shared_code_names_nothing_of_this_site "${plugin_folders[@]}"
 }
 
 # The tools, which every site shares (template plan 1.2g): the scripts, their helpers and checker
@@ -115,12 +123,12 @@ tools_name_nothing_of_this_site() {
 # with a stranger's (plan step 8b).
 plugins_never_updated_from_wordpress_org() {
   local plugin_folder main_file missing=0
-  for plugin_folder in "$PROJECT_DIR"/plugins/*/; do
-    main_file="$plugin_folder$(basename "$plugin_folder").php"
+  while IFS= read -r plugin_folder; do
+    main_file="$plugin_folder/$(basename "$plugin_folder").php"
     plugin_never_updated_from_wordpress_org "$main_file" && continue
     log "${main_file#"$PROJECT_DIR"/} has no \"Update URI: false\" header"
     missing=1
-  done
+  done < <(site_plugin_folders "$PROJECT_DIR/plugins")
   return "$missing"
 }
 
@@ -247,12 +255,14 @@ theme_json_schema_matches_wordpress() {
 # Lints every CSS file of the themes and plugins (plan D29). The linter's folder is writable for
 # npm's node_modules (ignored by git); the code it checks is read-only and mounted outside it, so
 # Docker creates no mount folders inside tools/. An empty set passes, so a theme without
-# stylesheets is not an error.
+# stylesheets is not an error. The site's own plugins only where it has a plugins/ folder.
 css_lint() {
+  local plugins_mount=()
+  mapfile -t plugins_mount < <(site_plugins_mount_arguments "$PROJECT_DIR/plugins" /src/plugins)
   docker run --rm -w /lint \
     -v "$TOOLS_DIR/tools/css-lint:/lint" \
     -v "$PROJECT_DIR/themes:/src/themes:ro" \
-    -v "$PROJECT_DIR/plugins:/src/plugins:ro" \
+    "${plugins_mount[@]}" \
     -v "$NPM_CACHE_VOLUME:/root/.npm" \
     "$PLAYWRIGHT_IMAGE" sh -c 'npm ci --ignore-scripts --no-audit --no-fund --loglevel=error && npx --no-install stylelint --config /lint/stylelint.config.mjs --allow-empty-input "/src/**/*.css"'
 }

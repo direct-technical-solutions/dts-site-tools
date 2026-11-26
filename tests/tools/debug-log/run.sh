@@ -6,6 +6,15 @@ set -Euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly HERE
+# tools/site-packages.sh reads the site's folder when it is loaded; the stand-ins live in WORK.
+WORK="$(mktemp -d)"
+readonly WORK
+trap 'rm -rf "$WORK"' EXIT
+TOOLS_DIR="$HERE/../../.."
+PROJECT_DIR="$WORK"
+export TOOLS_DIR PROJECT_DIR
+# shellcheck source=tools/site-packages.sh
+source "$HERE/../../../tools/site-packages.sh"
 # shellcheck source=tests/scenario/debug-log.sh
 source "$HERE/../../scenario/debug-log.sh"
 
@@ -24,16 +33,37 @@ readonly CASES=(
   "fail ## #0 /var/www/html/wp-settings.php(545): include_once() ## a fatal error's stack trace line"
   "fail ## $STAMP PHP Warning:  Undefined variable \$y in /var/www/html/wp-content/plugins/downloaded-plugin/x.php on line 4 ## a message written without its origin"
   "fail ## $STAMP DEV ORIGIN Error plugins/downloaded-plugin/x.php:4 | Something in /x.php on line 4 ## an origin line of an unknown level"
+  "fail ## $STAMP DEV ORIGIN Notice plugins/example-release/example-release.php:8 | Something in /var/www/html/wp-content/plugins/example-release/example-release.php on line 8 ## DTS's plugin, downloaded (template plan 2.2c)"
+  "shown ## $STAMP DEV ORIGIN Warning plugins/contact-form-7/includes/x.php:5 | Something in /var/www/html/wp-content/plugins/contact-form-7/includes/x.php on line 5 ## a WordPress.org plugin from the same lock file"
 )
 
-SITE_SETTINGS=""
+readonly SITE_SETTINGS="$WORK/site.json"
+readonly SITE_PACKAGES_EXAMPLE_LOCK="$WORK/composer.lock"
+
+# The neutral site's facts, and a lock file holding a WordPress.org plugin and DTS's plugin
+# dts/example-release (the composer/installers entry is not a WordPress plugin).
+write_stand_ins() {
+  printf '{"theme": "example-child", "localPlugins": ["example-plugin"]}\n' >"$SITE_SETTINGS"
+  printf '%s\n' '{"packages": [' \
+    '{"name": "wpackagist-plugin/contact-form-7", "type": "wordpress-plugin"},' \
+    '{"name": "dts/example-release", "type": "wordpress-plugin"},' \
+    '{"name": "composer/installers", "type": "composer-plugin"}]}' >"$SITE_PACKAGES_EXAMPLE_LOCK"
+}
+
+# Without a lock file, the site's own code is its theme, its own plugins and the must-use plugins.
+expect_places_without_lock() {
+  local expected actual
+  expected="$(printf '%s\n' themes/example-child/ plugins/example-plugin/ mu-plugins/)"
+  actual="$(own_code_places "$SITE_SETTINGS" "$WORK/no-such.lock")"
+  [[ "$actual" == "$expected" ]] || { log "FAIL  no lock file: own-code places \"$actual\", expected \"$expected\""; return 1; }
+  log "ok    no lock file: the theme, the site's plugin and the must-use plugins"
+}
 
 main() {
   local own_places entry expected line what verdict failed=0
-  SITE_SETTINGS="$(mktemp)"
-  trap 'rm -f "$SITE_SETTINGS"' EXIT
-  printf '{"theme": "example-child", "localPlugins": ["example-plugin"]}\n' >"$SITE_SETTINGS"
-  own_places="$(own_code_places "$SITE_SETTINGS")"
+  write_stand_ins
+  expect_places_without_lock || failed=1
+  own_places="$(own_code_places "$SITE_SETTINGS" "$SITE_PACKAGES_EXAMPLE_LOCK")"
   [[ -z "$(debug_log_verdicts "" "$own_places")" ]] || { log "FAIL  an empty log gave a verdict"; failed=1; }
   for entry in "${CASES[@]}"; do
     expected="${entry%% ## *}"

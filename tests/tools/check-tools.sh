@@ -350,7 +350,8 @@ shellcheck_tools_scripts() {
 # The versions check's alerts (template plan 1.3c), the debug log rule on sample lines (1.5b), the
 # routines' and status sheet's checks (1.5c, 1.5d-4), the page check (1.4b), bin/deploy's checks
 # (1.4d), the design-token and site-layer checks and the theme assembly (1.6b, 1.6c), the dev-site
-# guard, how the tools find the site with the tools apart (T19), and a DTS plugin's file rules and
+# guard, how the tools find the site with the tools apart (T19), the site's own plugins with or
+# without plugins/ (2.2c), and a DTS plugin's file rules and
 # bin/plugin-check's arguments (T26).
 tools_test() {
   bash "$TOOLS_DIR/tests/tools/$1/run.sh"
@@ -395,6 +396,7 @@ run_tools_tests() {
   run_check "The theme assembly on known examples" tools_test site-theme
   run_check "The dev-site guard on known examples" tools_test dev-site-guard
   run_check "The tools find the site with the tools apart" tools_test paths
+  run_check "The site's own plugins found, with or without plugins/" tools_test site-plugins
   run_check "The workflows' pin on known examples" tools_test tools-pin
   run_check "The plugin checks' rules on known examples" tools_test plugin-check
   run_check "The tools' lock-file update, with no site" tools_test tools-update

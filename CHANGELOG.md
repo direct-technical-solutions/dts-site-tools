@@ -54,6 +54,14 @@ change how a site calls the tools.
 - `bin/dev-site` replaces a downloaded plugin's folder before copying it: a dev site built before
   a plugin moved from `localPlugins` to a download kept its empty mount point in the files
   volume, and the copy landed one level too deep, so WordPress did not find the plugin.
+- `bin/check` works for a site without a `plugins/` folder (all its plugins downloaded, as a new
+  site from the starter): it no longer mounts the folder regardless, which made Docker create it
+  owned by root, and the names and "Update URI" checks look only at the plugin folders that
+  exist (the names check says when there are none; the "Update URI" check failed on an empty
+  folder's bare pattern).
+- The dev site's debug log rule counts DTS's downloaded plugins (`dts/*` in
+  `site-packages/composer.lock`) as the site's own code, as they were while in `localPlugins`:
+  a notice from one fails the tests again instead of being only shown.
 
 ## [0.3.1] - 2026-11-26
 
