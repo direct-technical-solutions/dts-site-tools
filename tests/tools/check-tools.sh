@@ -397,6 +397,7 @@ run_tools_tests() {
   run_check "The dev-site guard on known examples" tools_test dev-site-guard
   run_check "The tools find the site with the tools apart" tools_test paths
   run_check "The site's own plugins found, with or without plugins/" tools_test site-plugins
+  run_check "Each site's own downloaded plugins read (SITE_DIR)" tools_test site-packages-dir
   run_check "The workflows' pin on known examples" tools_test tools-pin
   run_check "The plugin checks' rules on known examples" tools_test plugin-check
   run_check "The tools' lock-file update, with no site" tools_test tools-update

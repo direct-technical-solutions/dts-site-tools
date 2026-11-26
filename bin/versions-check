@@ -67,6 +67,9 @@ readonly TEST_SERVER_PACKAGES=(
 log() { printf '%s [versions-check] %s\n' "$(date +%H:%M:%S)" "$*" >&2; }
 fail() { log "ERROR: $*"; exit 1; }
 
+# The alerts are about this repository's own plugins and Dependabot's pull requests for them, never
+# the starter's (template plan T28), whatever SITE_DIR the user's shell holds.
+unset SITE_DIR
 # shellcheck source=tools/site-packages.sh
 source "$TOOLS_DIR/tools/site-packages.sh"
 

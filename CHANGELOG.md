@@ -8,6 +8,14 @@ change how a site calls the tools.
 
 ## [Unreleased]
 
+### Changed
+
+- Each site has its own downloaded plugins (template plan T28): `bin/dev-site`, `bin/test` and the
+  scenario checks read `site-packages/` from the site worked on, so `SITE_DIR=starter` installs
+  the starter's `starter/site-packages/`, never the repository's. A site worked on without its
+  own list stops at "composer.lock is missing". `bin/check` and `bin/versions-check` read the
+  repository's, as before; a site without `SITE_DIR` sees no change.
+
 ## [0.4.0] - 2026-11-26
 
 ### Added

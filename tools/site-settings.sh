@@ -7,11 +7,11 @@
 # names another site's folder (the starter's, SITE_DIR=starter), laid out the same way: site.json
 # at its top, its test pages' text in tests/dev-content/, its own build steps in
 # tests/dev-setup.sh (optional) and its theme in themes/. A relative SITE_DIR is read from the
-# site's repository (PROJECT_DIR), wherever the command is typed. The plugins (plugins/) and the
-# booking form's files (config/) stay the repository's. Never exported by this file: a SITE_DIR
-# the user sets reaches the scenario checks and tests a script starts through the user's own
-# environment, and an unset one leaves every tool, a stand-in copy under test included, on its
-# own repository.
+# site's repository (PROJECT_DIR), wherever the command is typed. Its downloaded plugins are its
+# own too (site-packages/, template plan T28); the plugins (plugins/) and the booking form's files
+# (config/) stay the repository's. Never exported by this file: a SITE_DIR the user sets reaches
+# the scenario checks and tests a script starts through the user's own environment, and an unset
+# one leaves every tool, a stand-in copy under test included, on its own repository.
 SITE_DIR="${SITE_DIR:-$PROJECT_DIR}"
 [[ "$SITE_DIR" == /* ]] || SITE_DIR="$PROJECT_DIR/$SITE_DIR"
 SITE_DIR="${SITE_DIR%/}"
