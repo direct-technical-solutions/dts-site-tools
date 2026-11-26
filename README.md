@@ -15,7 +15,7 @@ site's own `bin/` (both `vendor/` and `bin/` ignored by the site's git):
     "repositories": [
         { "type": "vcs", "url": "https://github.com/direct-technical-solutions/dts-site-tools" }
     ],
-    "require-dev": { "dts/site-tools": "0.2.0" },
+    "require-dev": { "dts/site-tools": "0.3.0" },
     "config": {
         "bin-dir": "bin",
         "allow-plugins": { "dealerdirect/phpcodesniffer-composer-installer": true }
