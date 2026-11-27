@@ -24,8 +24,10 @@ plan step 5a-2; the real old site stays online until go-live, and the export sta
 names another site's folder (template plan 1.6c, T14): `SITE_DIR=starter bin/dev-site` builds the
 starter's dev site (its own database, from its slug; the same port, so one dev site runs at a
 time), and `SITE_DIR=starter bin/test` tests it, with the starter's own browser specs (none so
-far) instead of this site's, leaving out those of this repository's plugins the starter does not list and the screenshots check, each
-named in the output. Both refuse, naming the two sites and the command that stops the other by
+far) instead of this site's, leaving out those of this repository's plugins the starter does not
+list and the screenshots check, each named in the output. Each site has its own downloaded
+plugins: `SITE_DIR=starter` installs those in `starter/site-packages/`, never this site's
+(template plan T28). Both refuse, naming the two sites and the command that stops the other by
 name, when the port is held by another site's dev site (`tools/dev-site-guard.sh`, template plan
 1.6c-2); to switch, `docker compose -p <slug>-dev stop` (its data stays), then `bin/dev-site` with
 the other site's `SITE_DIR`. `bin/check` always checks this repository; `bin/deploy` and

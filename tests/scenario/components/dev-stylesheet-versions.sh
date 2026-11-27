@@ -33,14 +33,24 @@ readonly MINIMUM_STYLESHEETS=10
 
 # Maps a path inside the WordPress container to the host's copy of the same file: the theme in
 # the site's themes folder (this repository's, or the site SITE_DIR names, template plan 1.6c),
-# the plugins in plugins/.
+# a plugin in plugins/ when it is one of the site's own, otherwise in the downloaded plugins the
+# dev site was given (site-packages/, since DTS's plugins are downloaded too, template plan T25).
 repository_copy() {
   local container_path="$1"
   case "$container_path" in
     */wp-content/themes/*) printf '%s/%s' "$SITE_THEMES_DIR" "${container_path#*/wp-content/themes/}" ;;
-    */wp-content/plugins/*) printf '%s/plugins/%s' "$PROJECT_DIR" "${container_path#*/wp-content/plugins/}" ;;
+    */wp-content/plugins/*) plugin_copy "${container_path#*/wp-content/plugins/}" ;;
     *) return 1 ;;
   esac
+}
+
+plugin_copy() {
+  local path_in_plugins="$1"
+  if [[ -d "$PROJECT_DIR/plugins/${path_in_plugins%%/*}" ]]; then
+    printf '%s/plugins/%s' "$PROJECT_DIR" "$path_in_plugins"
+  else
+    printf '%s/%s' "$SITE_PACKAGES_PLUGINS_DIR" "$path_in_plugins"
+  fi
 }
 
 check_line() {
