@@ -148,7 +148,7 @@ the other site's `SITE_DIR`. `bin/check` always checks this repository; `bin/dep
   - **The site's own checks:** every `tests/checks/*.sh`, loaded in name order; each calls
     `run_check` for its checks and may use what `bin/check` has loaded (`tools/check-lib.sh`,
     the `site.json` readers, `SITE_THEME_DIR`, `SITE_PHP_PREFIX`). Here: `components.sh` (until
-    template plan 2.3: the component list in `functions.php` matching the files in
+    template plan 2.4: the component list in `functions.php` matching the files in
     `assets/css/components/` both ways; every design token the component stylesheets and
     `theme.json` read defined in `theme.json`, `tools/theme-tokens.sh`; every `site-…` component
     shown on the components' example page, `tests/e2e/specs/dev/components/pages/`, built by

@@ -2,8 +2,8 @@
 # Assembles a site's full child theme from its site layer (template plan 1.6c, T14): the shared
 # theme code is this repository's theme, so the full theme is that theme's files, each site-layer
 # file (tools/site-layer-files.txt) replaced by the layer's own, and the layer's pictures added.
-# It stands in for template plan 2.4's starter theme until 2.3 moves the shared code into its
-# plugin. The result is build output, ignored by git and made again on every build, so it never
+# It stands in for the starter's own theme until template plan 2.4 copies the shared code into the
+# starter (T29). The result is build output, ignored by git and made again on every build, so it never
 # goes stale. Sourced by bin/dev-site and tested on known examples by
 # tests/tools/site-theme/run.sh. Needs bash, cp, find, rm, mv and sed; the layer is checked against
 # the list first (tools/site-layer.sh).

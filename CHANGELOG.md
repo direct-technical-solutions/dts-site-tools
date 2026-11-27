@@ -8,6 +8,25 @@ change how a site calls the tools.
 
 ## [Unreleased]
 
+### Added
+
+- Site Hardening's tests check that WordPress's emoji support is gone, which Site Hardening 0.4.0
+  removes: the scenario (`dev-site-hardening`) finds no emoji script or styles on the home page
+  and a post's embed, and no emoji pictures from WordPress.org in the feed or an HTML email;
+  `hardening.spec.ts` finds no emoji script or styles on the admin's dashboard. A site on Site
+  Hardening 0.3.0 fails the admin test even where its theme removes emoji support at `init`,
+  since WordPress adds the admin's emoji hooks after `init`.
+
+### Changed
+
+- Comments and `docs/TOOLS.md` no longer say that template plan 2.3 moves the shared theme code
+  into a plugin; the starter gets its own copy at 2.4 (T29).
+
+### Fixed
+
+- The Site Hardening scenario deletes its unfiltered-HTML probe drafts: their ids were collected
+  in a subshell, so the cleanup never saw them and each run left two drafts on the dev site.
+
 ## [0.4.1] - 2026-11-27
 
 ### Changed
