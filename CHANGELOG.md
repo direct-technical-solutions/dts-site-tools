@@ -16,6 +16,14 @@ change how a site calls the tools.
   own list stops at "composer.lock is missing". `bin/check` and `bin/versions-check` read the
   repository's, as before; a site without `SITE_DIR` sees no change.
 
+### Fixed
+
+- The read-only code scenario (`dev-code-mounts`) works for a site without a `plugins/` folder,
+  as `bin/check` does since 0.4.0: it checked a folder literally named `plugins/*` and failed.
+- The stylesheet versions scenario (`dev-stylesheet-versions`) finds a downloaded plugin's
+  stylesheet among the downloaded plugins: it looked only in `plugins/`, so it failed for Song
+  List since it became a download.
+
 ## [0.4.0] - 2026-11-26
 
 ### Added
