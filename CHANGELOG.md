@@ -8,6 +8,8 @@ change how a site calls the tools.
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-11-27
+
 ### Added
 
 - Site Hardening's tests check that WordPress's emoji support is gone, which Site Hardening 0.4.0
