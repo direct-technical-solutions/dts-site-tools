@@ -21,7 +21,7 @@ remove_probes() {
   for post_id in "${PROBE_POST_IDS[@]}"; do
     wp_cli post delete "$post_id" --force >/dev/null 2>&1 || true
   done
-  wp_cli eval "wp_delete_file( (string) hbmusic_video_picture_path( '$VIDEO_WITH_PICTURE' ) );" >/dev/null 2>&1 || true
+  wp_cli eval "wp_delete_file( (string) dtstheme_video_picture_path( '$VIDEO_WITH_PICTURE' ) );" >/dev/null 2>&1 || true
 }
 
 # Saves a draft holding a video, as WordPress's video block saves it, which runs the fetch.
@@ -37,14 +37,14 @@ https://www.youtube.com/watch?v=$video_id
 }
 
 has_picture() {
-  wp_cli eval "echo null === hbmusic_video_picture( '$1' ) ? 'no' : 'yes';"
+  wp_cli eval "echo null === dtstheme_video_picture( '$1' ) ? 'no' : 'yes';"
 }
 
 expect_picture_fetched_on_save() {
   [[ "$(has_picture "$VIDEO_WITH_PICTURE")" == no ]] || fail "$VIDEO_WITH_PICTURE had a picture before its page was saved"
   save_draft_with_video "$VIDEO_WITH_PICTURE"
   [[ "$(has_picture "$VIDEO_WITH_PICTURE")" == yes ]] || fail "saving a page did not fetch $VIDEO_WITH_PICTURE's picture"
-  [[ "$(wp_cli eval "echo hbmusic_is_jpeg_picture( (string) hbmusic_video_picture_path( '$VIDEO_WITH_PICTURE' ) ) ? 'jpeg' : 'other';")" == jpeg ]] \
+  [[ "$(wp_cli eval "echo dtstheme_is_jpeg_picture( (string) dtstheme_video_picture_path( '$VIDEO_WITH_PICTURE' ) ) ? 'jpeg' : 'other';")" == jpeg ]] \
     || fail "the fetched picture is not a JPEG"
   log "saving a page with a video fetched its picture, a JPEG, into the uploads folder"
 }
@@ -53,7 +53,7 @@ expect_no_picture_when_youtube_has_none() {
   local facade
   save_draft_with_video "$VIDEO_WITHOUT_PICTURE"
   [[ "$(has_picture "$VIDEO_WITHOUT_PICTURE")" == no ]] || fail "a picture was kept for $VIDEO_WITHOUT_PICTURE, which YouTube does not have"
-  facade="$(wp_cli eval "echo hbmusic_video_facade_html( '$VIDEO_WITHOUT_PICTURE', 'Probe' );")"
+  facade="$(wp_cli eval "echo dtstheme_video_facade_html( '$VIDEO_WITHOUT_PICTURE', 'Probe' );")"
   [[ "$facade" == *'class="video-facade"'* && "$facade" == *'video-facade__play'* ]] || fail "no facade without a picture: $facade"
   [[ "$facade" != *'<img'* ]] || fail "a facade without a picture shows an image: $facade"
   log "a video without a picture keeps no file and shows the play button on a dark box"
@@ -63,7 +63,7 @@ expect_no_picture_when_youtube_has_none() {
 expect_other_frames_untouched() {
   local frame result
   for frame in '<iframe src="https://player.vimeo.com/video/1"></iframe>' '<iframe src="https://www.youtube.com/embed/short"></iframe>'; do
-    result="$(wp_cli eval "echo hbmusic_replace_youtube_players( '$frame' );")"
+    result="$(wp_cli eval "echo dtstheme_replace_youtube_players( '$frame' );")"
     [[ "$result" == "$frame" ]] || fail "a frame was changed: $frame became $result"
   done
   log "other frames and malformed video addresses are left as they are"

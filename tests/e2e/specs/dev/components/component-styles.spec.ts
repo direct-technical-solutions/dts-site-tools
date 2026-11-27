@@ -7,8 +7,8 @@ import { TEST_PATHS, pagesUsing } from '../helpers/test-pages';
 // the plugin (plugins/song-list/song-list-styles.spec.ts). Each look is checked on every page
 // with its component (template plan T10); the call to action's on every page whose template adds
 // it, which no page file shows.
-const EVERY_PAGE_STYLES = ['hbmusic-site-header', 'hbmusic-site-footer'];
-const FORM_STYLES = 'hbmusic-form';
+const EVERY_PAGE_STYLES = ['dtstheme-site-header', 'dtstheme-site-footer'];
+const FORM_STYLES = 'dtstheme-form';
 // Contact Form 7's own wrapper; the form comes from a shortcode, so no page file shows its class.
 const FORM = '.wpcf7';
 const CALL_TO_ACTION = '.site-cta';

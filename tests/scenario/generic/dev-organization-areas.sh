@@ -11,7 +11,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 # The organization piece with the given towns (a JSON list), as the theme returns it.
 organization_with_towns() {
   dev_compose run --rm -T cli wp eval \
-    "echo wp_json_encode( hbmusic_add_areas_served( array( 'name' => 'Example' ), json_decode( '$1', true ) ) );" </dev/null
+    "echo wp_json_encode( dtstheme_add_areas_served( array( 'name' => 'Example' ), json_decode( '$1', true ) ) );" </dev/null
 }
 
 main() {

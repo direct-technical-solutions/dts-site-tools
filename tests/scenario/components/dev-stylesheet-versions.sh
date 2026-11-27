@@ -23,7 +23,7 @@ readonly LIST_PHP='do_blocks(
 	. "<!-- wp:songlist/song-list /-->"
 );
 foreach ( wp_styles()->registered as $handle => $style ) {
-	if ( str_starts_with( $handle, "hbmusic-" ) || str_starts_with( $handle, "songlist-" ) ) {
+	if ( str_starts_with( $handle, "dtstheme-" ) || str_starts_with( $handle, "songlist-" ) ) {
 		echo $handle, " ", wp_styles()->get_data( $handle, "path" ), " ", $style->ver, PHP_EOL;
 	}
 }'

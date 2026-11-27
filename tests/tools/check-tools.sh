@@ -349,7 +349,8 @@ shellcheck_tools_scripts() {
 # Each of the tools' tests on known situations, against stand-ins; nothing goes over the network.
 # The versions check's alerts (template plan 1.3c), the debug log rule on sample lines (1.5b), the
 # routines' and status sheet's checks (1.5c, 1.5d-4), the page check (1.4b), bin/deploy's checks
-# (1.4d), the design-token and site-layer checks and the theme assembly (1.6b, 1.6c), the dev-site
+# (1.4d), the design-token and site-layer checks and the theme assembly (1.6b, 1.6c), the theme's
+# component checks (T30), the dev-site
 # guard, how the tools find the site with the tools apart (T19), the site's own plugins with or
 # without plugins/ (2.2c), and a DTS plugin's file rules and
 # bin/plugin-check's arguments (T26).
@@ -393,6 +394,7 @@ run_tools_tests() {
   run_check "The deploy's checks on known situations" tools_test deploy
   run_check "The token check refuses bad examples" tools_test theme-tokens
   run_check "The site-layer check refuses bad examples" tools_test site-layer
+  run_check "The theme's component checks refuse bad examples" tools_test theme-components
   run_check "The theme assembly on known examples" tools_test site-theme
   run_check "The dev-site guard on known examples" tools_test dev-site-guard
   run_check "The tools find the site with the tools apart" tools_test paths
