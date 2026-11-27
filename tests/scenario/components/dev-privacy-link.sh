@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Scenario (dev site): the footer's Privacy Policy link follows Settings → Privacy (plan 1b; the
-# theme's hbmusic_link_privacy_policy()). A fixed /privacy-policy/ once opened WordPress's old
+# theme's dtstheme_link_privacy_policy()). A fixed /privacy-policy/ once opened WordPress's old
 # draft on staging. Checked: the chosen page; another page chosen instead; no page chosen, which
 # leaves the link out rather than linking to nothing. A scenario check, not a browser test, since
 # it changes a setting every page shares; the setting is put back however the check ends.

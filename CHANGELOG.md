@@ -6,7 +6,29 @@ changed `site.json` field, and every change to what `bin/check` gives a site's o
 versions follow [Semantic Versioning](https://semver.org/), where below 1.0 a minor version may
 change how a site calls the tools.
 
-## [Unreleased]
+## [0.5.0] - 2026-11-27
+
+### Changed
+
+- **Breaking:** the shared theme code's names are the same in every site (template plan T30), no
+  longer this site's `hbmusic`: PHP `dtstheme_…` and `DTSTHEME_…`, the class
+  `Dtstheme_Carousel_Scan`, text domain `dts-theme`, patterns `dts-theme/…`, style and script
+  handles `dtstheme-…`, the event `dts-theme:player-added`, the picture folder
+  `dts-theme-video-pictures`, the script module `@dts-theme/video-shared`. The shared tests
+  (`dev-organization-areas`, `dev-patterns`, `dev-stylesheet-versions`, `dev-video-pictures`,
+  `component-styles.spec.ts`) and the scripts' type check (`tools/js-check/tsconfig.json`) use
+  them, so a site's theme must use them too.
+- **Breaking, for a site's own checks:** `bin/check` no longer sets `SITE_PHP_PREFIX` (the theme's
+  prefix no longer comes from the slug); it loads `tools/theme-tokens.sh` itself, so a site's own
+  check that loads it again fails on its readonly settings and must drop that line.
+
+### Added
+
+- `bin/check` runs the theme's component checks for every site (`tools/theme-components.sh`):
+  the named component stylesheets and the files match both ways, every design token used is
+  defined, every `site-…` component appears on the example pages or in a template part. Until
+  now a site's own `tests/checks/components.sh`, which a site deletes. Tested on known examples
+  (`tests/tools/theme-components/`).
 
 ## [0.4.2] - 2026-11-27
 
@@ -203,7 +225,9 @@ change how a site calls the tools.
   PHPCSUtils 1.2.3, PHPCSExtra 1.5.1, PHPStan 2.3.5, PHPStan for WordPress 2.0.4 and the
   WordPress stubs 7.1.2.
 
-[Unreleased]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.4.2...v0.5.0
+[0.4.2]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.3.0...v0.3.1

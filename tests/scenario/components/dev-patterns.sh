@@ -13,7 +13,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/../lib.sh"
 
 # In single quotes on purpose: PHP's variables are for WP-CLI, not this shell.
 # shellcheck disable=SC2016
-readonly CHECK_PHP='$pattern = WP_Block_Patterns_Registry::get_instance()->get_registered( "hbmusic/video-carousel" );
+readonly CHECK_PHP='$pattern = WP_Block_Patterns_Registry::get_instance()->get_registered( "dts-theme/video-carousel" );
 if ( null === $pattern ) {
 	echo "missing", PHP_EOL;
 	return;

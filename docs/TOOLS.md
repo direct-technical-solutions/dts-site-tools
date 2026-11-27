@@ -144,18 +144,20 @@ the other site's `SITE_DIR`. `bin/check` always checks this repository; `bin/dep
     that folder's `audit-exceptions.json`, each with its reason and a review-by date after which it
     fails again, and an accepted one that npm no longer reports also fails; none accepted since
     2026-11-20); ShellCheck on the site's own scripts (`tests/dev-setup.sh`, `tests/checks/`);
-    actionlint on the workflows; the compose file.
+    actionlint on the workflows; the compose file; the theme's components
+    (`tools/theme-components.sh`, template plan T30: the component stylesheets the theme names
+    under the fixed prefix `DTSTHEME_`, in `functions.php` and `includes/video-facade.php`,
+    matching the files in `assets/css/components/` both ways; every design token the component
+    stylesheets and `theme.json` read defined in `theme.json`, `tools/theme-tokens.sh`; every
+    `site-…` component shown on the components' example page,
+    `tests/e2e/specs/dev/components/pages/`, built by `bin/dev-site` at `/component-examples/`
+    outside the menu, T10, or in a template part).
   - **The site's own checks:** every `tests/checks/*.sh`, loaded in name order; each calls
     `run_check` for its checks and may use what `bin/check` has loaded (`tools/check-lib.sh`,
-    the `site.json` readers, `SITE_THEME_DIR`, `SITE_PHP_PREFIX`). Here: `components.sh` (until
-    template plan 2.4: the component list in `functions.php` matching the files in
-    `assets/css/components/` both ways; every design token the component stylesheets and
-    `theme.json` read defined in `theme.json`, `tools/theme-tokens.sh`; every `site-…` component
-    shown on the components' example page, `tests/e2e/specs/dev/components/pages/`, built by
-    `bin/dev-site` at `/component-examples/` outside the menu, T10, or in a template part) and
-    `starter.sh` (until 2.4: the starter's `site.json` and pages, its `theme.json` schema and
-    tokens, exactly the site-layer files of `tools/site-layer-files.txt`, none of this site's
-    names but the prefix, PHPCS and PHPStan).
+    the `site.json` readers, `tools/theme-tokens.sh`, `SITE_THEME_DIR`). Here: `starter.sh`
+    (until 2.4: the starter's `site.json` and pages, its `theme.json` schema and tokens, exactly
+    the site-layer files of `tools/site-layer-files.txt`, none of this site's names, PHPCS and
+    PHPStan).
   - **The tools' self-check** (`tests/tools/check-tools.sh`), run by `bin/check` only while the
     tools are the site's own (this repository until template plan 2.1d), and by the tools' own
     repository; it needs no site. The tools' Composer install, validation and audit and the npm

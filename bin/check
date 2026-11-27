@@ -33,16 +33,20 @@ source "$TOOLS_DIR/tools/routines.sh"
 source "$TOOLS_DIR/tools/status-sheet.sh"
 # shellcheck source=tools/tools-pin.sh
 source "$TOOLS_DIR/tools/tools-pin.sh"
+# Loaded once here, for the theme's checks below and for a site's own checks that read the tokens
+# (the starter's): a second load would fail on its readonly settings.
+# shellcheck source=tools/theme-tokens.sh
+source "$TOOLS_DIR/tools/theme-tokens.sh"
+# shellcheck source=tools/theme-components.sh
+source "$TOOLS_DIR/tools/theme-components.sh"
 
 # A site's own checks (template plan T20): each file is loaded in name order after the checks
 # below and calls run_check for each of its checks.
 readonly SITE_OWN_CHECKS_DIR="$PROJECT_DIR/tests/checks"
 
-# The site's facts the checks need, from site.json (load_check_settings): its theme's folder, the
-# prefix of the theme's PHP names (the slug in capitals with dashes as underscores, the theme's
-# convention: a slug "my-site" gives MY_SITE_), and its own plugins.
+# The site's facts the checks need, from site.json (load_check_settings): its theme's folder and
+# its own plugins. The theme's PHP prefix is the same for every site (tools/theme-components.sh).
 SITE_THEME_DIR=""
-SITE_PHP_PREFIX=""
 SITE_LOCAL_PLUGINS=()
 
 # The tools are third-party code, so each container sees only the files its step needs: never
@@ -77,16 +81,13 @@ in_analysis() {
 }
 
 load_check_settings() {
-  local slug folder_problems
+  local folder_problems
   # Every check below reads these folders; a missing one would fail them with unrelated errors.
   folder_problems="$(site_settings_theme_problem "$SITE_SETTINGS_FILE" "$PROJECT_DIR/themes")$(site_settings_missing_local_plugins "$SITE_SETTINGS_FILE" "$PROJECT_DIR/plugins")"
   [[ -z "$folder_problems" ]] || { log "site.json: $(paste -sd ';' <<<"$folder_problems")"; exit 1; }
-  slug="$(site_setting .slug)"
-  SITE_PHP_PREFIX="${slug^^}"
-  SITE_PHP_PREFIX="${SITE_PHP_PREFIX//-/_}"
   SITE_THEME_DIR="$PROJECT_DIR/themes/$(site_setting .theme)"
   mapfile -t SITE_LOCAL_PLUGINS < <(site_settings_query '.localPlugins[]')
-  readonly SITE_PHP_PREFIX SITE_THEME_DIR SITE_LOCAL_PLUGINS
+  readonly SITE_THEME_DIR SITE_LOCAL_PLUGINS
 }
 
 # Code shared with other sites (the plugins, the tools) must name nothing of this one
@@ -240,6 +241,33 @@ in_js_check() {
     "$PLAYWRIGHT_IMAGE" sh -c "npm ci --ignore-scripts --no-audit --no-fund --loglevel=error && $1"
 }
 
+# The theme's components (tools/theme-components.sh, theme-tokens.sh): each check logs the
+# problems its helper prints and fails when there is one.
+logged_problems() {
+  local title="$1" problems
+  shift
+  problems="$("$@")"
+  [[ -z "$problems" ]] && return 0
+  log "$title"
+  printf '%s\n' "$problems" | sed 's/^/    /' >&2
+  return 1
+}
+
+component_styles_match_files() {
+  logged_problems "The component stylesheets the theme names and its files differ:" \
+    theme_component_style_differences "$SITE_THEME_DIR"
+}
+
+theme_defines_every_token() {
+  logged_problems "The theme's design tokens are incomplete:" \
+    theme_token_differences "$SITE_THEME_DIR/assets/css/components" "$SITE_THEME_DIR/theme.json"
+}
+
+components_shown_on_example_pages() {
+  logged_problems "Add a neutral example of each to the components' example pages (${COMPONENT_EXAMPLES_DIR#"$TOOLS_DIR"/}/):" \
+    theme_components_missing_examples "$SITE_THEME_DIR" "$COMPONENT_EXAMPLES_DIR"
+}
+
 # theme.json's schema must describe the WordPress version the site runs (compose.dev.yaml): an
 # older schema hides settings the site has, a newer one offers settings it silently ignores.
 theme_json_schema_matches_wordpress() {
@@ -315,6 +343,9 @@ run_standards_and_rule_checks() {
 run_analysis_and_file_checks() {
   run_check "Static analysis (PHPStan)" in_analysis php "$PHPSTAN_ENTRY" analyse --no-progress --memory-limit=1G
   run_check "theme.json schema matches WordPress" theme_json_schema_matches_wordpress
+  run_check "Component stylesheets match their list" component_styles_match_files
+  run_check "The theme defines every design token used" theme_defines_every_token
+  run_check "Components appear on the example pages" components_shown_on_example_pages
   run_check "TypeScript (browser tests)" typescript_check
   run_check "Type check (the theme's scripts)" theme_scripts_check
   run_check "ESLint (the theme's scripts)" theme_scripts_lint

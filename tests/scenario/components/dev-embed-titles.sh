@@ -2,7 +2,7 @@
 # Scenario (dev site): an embedded video's title reaches browsers and screen readers as written
 # (docs/SITE_CHECKLIST.md 7.4). WordPress 7.1 escaped an apostrophe twice, so "80's rock" was read
 # as "80&apos;s rock"; the theme decodes the title before WordPress escapes it
-# (hbmusic_decode_embed_title()). Ampersands and quotation marks were never affected; they are
+# (dtstheme_decode_embed_title()). Ampersands and quotation marks were never affected; they are
 # checked so that the decoding does not break them.
 #
 # WordPress's own title function runs on player code as YouTube sends it (the title escaped once),

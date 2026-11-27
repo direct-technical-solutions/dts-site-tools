@@ -11,7 +11,7 @@
     // browser each shared module's address by its name, and these paths give the compiler the same.
     "module": "preserve",
     "moduleResolution": "bundler",
-    "paths": { "@dts-site-components/video-shared": ["/theme-js/video-shared.js"] },
+    "paths": { "@dts-theme/video-shared": ["/theme-js/video-shared.js"] },
     "allowJs": true,
     "checkJs": true,
     "strict": true,
