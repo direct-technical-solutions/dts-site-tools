@@ -3,7 +3,8 @@
 # step 8a, D26): xmlrpc.php is refused (docs/SITE_CHECKLIST.md 4.4), no page points to it with an
 # X-Pingback header, Yoast SEO's version comment is gone, neither the pages nor the feed name
 # WordPress's version, and no response names the PHP version (3.6). Also (handbook 12, 3.1 and 4.10): HSTS only on HTTPS requests, and unfiltered HTML for
-# Administrators only. The headers on every page are
+# Administrators only. And WordPress's emoji support is gone from visitor pages, embeds, the feed
+# and email (the admin's in hardening.spec.ts). The headers on every page are
 # checked in tests/e2e/specs/dev/generic/theme.spec.ts, Application Passwords in
 # tests/e2e/specs/dev/plugins/site-hardening/hardening.spec.ts.
 set -Eeuo pipefail
@@ -102,13 +103,16 @@ expect_hsts_only_over_https() {
 }
 
 # Saves a draft as the given user through WP-CLI, which applies WordPress's kses filter as it
-# would for that user in the editor, and prints what was stored.
-stored_content_of_draft_by() {
+# would for that user in the editor, and keeps what was stored in STORED_DRAFT_CONTENT. Not
+# printed: called inside $(...), the function would run in a subshell, and the draft's id added to
+# PROBE_POST_IDS there would never reach the cleanup (drafts were left behind that way).
+STORED_DRAFT_CONTENT=''
+save_draft_as() {
   local user="$1" content="$2" post_id
   post_id="$(dev_compose run --rm -T cli wp post create --user="$user" --post_type=page --post_status=draft \
     --post_title="Unfiltered HTML probe" --post_content="$content" --porcelain)"
   PROBE_POST_IDS+=("$post_id")
-  dev_compose run --rm -T cli wp post get "$post_id" --field=post_content
+  STORED_DRAFT_CONTENT="$(dev_compose run --rm -T cli wp post get "$post_id" --field=post_content)"
 }
 
 # Unfiltered HTML for Administrators only (4.10, H79): an Editor's script is removed, while the
@@ -123,15 +127,77 @@ https://www.youtube.com/watch?v=probe0000
 <!-- /wp:embed -->'
   local shortcode='[contact-form-7 id="1" title="Booking"]'
   local editor_stored admin_stored
-  editor_stored="$(stored_content_of_draft_by "$DEV_EDITOR_USER" "$embed
+  save_draft_as "$DEV_EDITOR_USER" "$embed
 $shortcode
-$script")"
+$script"
+  editor_stored="$STORED_DRAFT_CONTENT"
   [[ "$editor_stored" != *'<script'* ]] || fail "an Editor's script was kept: $editor_stored"
   [[ "$editor_stored" == *"$embed"* ]] || fail "an Editor's video Embed block was changed: $editor_stored"
   [[ "$editor_stored" == *"$shortcode"* ]] || fail "an Editor's form shortcode was changed: $editor_stored"
-  admin_stored="$(stored_content_of_draft_by "$DEV_ADMIN_USER" "$script")"
+  save_draft_as "$DEV_ADMIN_USER" "$script"
+  admin_stored="$STORED_DRAFT_CONTENT"
   [[ "$admin_stored" == *"$script"* ]] || fail "an Administrator's script was removed: $admin_stored"
   log "an Editor's script is removed, their video and form are kept; an Administrator's script stays"
+}
+
+# What WordPress 7.1 prints for its emoji support (wp-includes/formatting.php): the detection
+# script's settings tag and its loader, the emoji styles' handle, and the pictures' address on
+# WordPress.org's servers, which the feed and email swaps also use.
+readonly EMOJI_MARKERS=('wp-emoji-settings' 'wp-emoji-loader' 'wp-emoji-styles' 's.w.org/images/core/emoji')
+# A guitar emoji, written as its UTF-8 bytes so the script itself stays plain ASCII.
+PROBE_EMOJI="$(printf '\xf0\x9f\x8e\xb8')"
+readonly PROBE_EMOJI
+readonly EMOJI_PROBE_TITLE='Emoji probe'
+
+# Fails naming the first emoji marker found in a response.
+expect_no_emoji_marker() {
+  local where="$1" response="$2" marker
+  for marker in "${EMOJI_MARKERS[@]}"; do
+    [[ "$response" != *"$marker"* ]] || fail "$where carries WordPress's emoji support ($marker)"
+  done
+}
+
+# A published post with an emoji, for the embed and the feed; deleted however the check ends. Its
+# id is kept in EMOJI_PROBE_POST_ID, not printed: called inside $(...), the function would run in
+# a subshell, and the id added to PROBE_POST_IDS there would never reach the cleanup.
+EMOJI_PROBE_POST_ID=''
+create_emoji_probe_post() {
+  EMOJI_PROBE_POST_ID="$(dev_compose run --rm -T cli wp post create --post_type=post --post_status=publish \
+    --post_title="$EMOJI_PROBE_TITLE" --post_content="<p>Guitar $PROBE_EMOJI</p>" --porcelain)"
+  PROBE_POST_IDS+=("$EMOJI_PROBE_POST_ID")
+}
+
+# Visitor pages and embeds: no detection script, no styles. The script is printed at the page's
+# end, so each response must be complete, or a missing marker would prove nothing.
+expect_no_emoji_on_pages() {
+  local post_id="$1" page embed
+  page="$(curl -sS --max-time 10 "$(site_url /)")"
+  # WordPress answers ?p=<id> with a redirect to the post's own address, which -L follows.
+  embed="$(curl -sSL --max-time 10 "$(site_url "/?p=$post_id&embed=true")")"
+  [[ "$page" == *'<head'* && "$page" == *'</html>'* ]] || fail "the home page did not load"
+  [[ "$embed" == *"$EMOJI_PROBE_TITLE"* && "$embed" == *'</html>'* ]] || fail "the probe post's embed did not load"
+  expect_no_emoji_marker "the home page" "$page"
+  expect_no_emoji_marker "the probe post's embed" "$embed"
+}
+
+# The feed and an HTML email keep an emoji as text, with no picture from WordPress.org. The email
+# is only passed through WordPress's mail filter, never sent.
+expect_no_emoji_pictures() {
+  local feed mail
+  feed="$(curl -sS --max-time 10 "$(site_url "/?feed=rss2")")"
+  [[ "$feed" == *"$EMOJI_PROBE_TITLE"* && "$feed" == *'</rss>'* ]] || fail "the feed did not carry the probe post"
+  expect_no_emoji_marker "the feed" "$feed"
+  # shellcheck disable=SC2016 # PHP code for WP-CLI: $mail is PHP's variable, not the shell's.
+  mail="$(dev_compose run --rm -T cli wp eval '$mail = apply_filters( "wp_mail", array( "to" => "probe@example.invalid", "subject" => "Emoji probe", "message" => "<p>Mail probe \u{1F3B8}</p>", "headers" => array( "Content-Type: text/html; charset=UTF-8" ), "attachments" => array() ) ); echo $mail["message"];')"
+  [[ "$mail" == *'Mail probe'* ]] || fail "the mail filter returned no message: $mail"
+  expect_no_emoji_marker "an HTML email" "$mail"
+}
+
+expect_no_emoji_support() {
+  create_emoji_probe_post
+  expect_no_emoji_on_pages "$EMOJI_PROBE_POST_ID"
+  expect_no_emoji_pictures
+  log "no emoji script or styles on a page or an embed; the feed and an HTML email keep emoji as text"
 }
 
 main() {
@@ -144,6 +210,7 @@ main() {
   expect_no_php_version_header
   expect_hsts_only_over_https
   expect_unfiltered_html_for_administrators_only
+  expect_no_emoji_support
   # Checked here as well as at the end of bin/test, so a refusal that costs a PHP notice is
   # named by this scenario.
   expect_clean_debug_log
