@@ -172,7 +172,8 @@ create_emoji_probe_post() {
 expect_no_emoji_on_pages() {
   local post_id="$1" page embed
   page="$(curl -sS --max-time 10 "$(site_url /)")"
-  embed="$(curl -sS --max-time 10 "$(site_url "/?p=$post_id&embed=true")")"
+  # WordPress answers ?p=<id> with a redirect to the post's own address, which -L follows.
+  embed="$(curl -sSL --max-time 10 "$(site_url "/?p=$post_id&embed=true")")"
   [[ "$page" == *'<head'* && "$page" == *'</html>'* ]] || fail "the home page did not load"
   [[ "$embed" == *"$EMOJI_PROBE_TITLE"* && "$embed" == *'</html>'* ]] || fail "the probe post's embed did not load"
   expect_no_emoji_marker "the home page" "$page"
