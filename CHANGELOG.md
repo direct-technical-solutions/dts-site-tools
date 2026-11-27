@@ -8,6 +8,8 @@ change how a site calls the tools.
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-11-27
+
 ### Changed
 
 - Each site has its own downloaded plugins (template plan T28): `bin/dev-site`, `bin/test` and the
@@ -180,7 +182,8 @@ change how a site calls the tools.
   PHPCSUtils 1.2.3, PHPCSExtra 1.5.1, PHPStan 2.3.5, PHPStan for WordPress 2.0.4 and the
   WordPress stubs 7.1.2.
 
-[Unreleased]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.2.0...v0.3.0
