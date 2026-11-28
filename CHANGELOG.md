@@ -6,7 +6,7 @@ changed `site.json` field, and every change to what `bin/check` gives a site's o
 versions follow [Semantic Versioning](https://semver.org/), where below 1.0 a minor version may
 change how a site calls the tools.
 
-## [Unreleased]
+## [0.7.0] - 2026-11-27
 
 ### Changed
 
@@ -273,7 +273,8 @@ change how a site calls the tools.
   PHPCSUtils 1.2.3, PHPCSExtra 1.5.1, PHPStan 2.3.5, PHPStan for WordPress 2.0.4 and the
   WordPress stubs 7.1.2.
 
-[Unreleased]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.4.1...v0.4.2
