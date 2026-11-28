@@ -6,6 +6,23 @@ changed `site.json` field, and every change to what `bin/check` gives a site's o
 versions follow [Semantic Versioning](https://semver.org/), where below 1.0 a minor version may
 change how a site calls the tools.
 
+## [0.7.0] - 2026-11-27
+
+### Changed
+
+- The shared contact form test (`tests/e2e/specs/dev/generic/booking-form.spec.ts`) fills only
+  the two fields every site's form has, the required "Your name" and "Your email", and puts its
+  unique word in the name (template plan T32). A site's other fields are its own and stay empty,
+  so they must be optional.
+
+### Removed
+
+- **Breaking, for a site's own checks:** `tools/site-layer.sh` (`site_layer_listed_files`,
+  `site_layer_differences`) and its test. Its last user was the starter's check in the first
+  site, which leaves with the starter's own repository (template plan 2.4c).
+  `tools/site-layer-files.txt` stays, as the list of a site's own theme files for copying a
+  shared change by hand (T29).
+
 ## [0.6.0] - 2026-11-27
 
 ### Added
@@ -256,7 +273,8 @@ change how a site calls the tools.
   PHPCSUtils 1.2.3, PHPCSExtra 1.5.1, PHPStan 2.3.5, PHPStan for WordPress 2.0.4 and the
   WordPress stubs 7.1.2.
 
-[Unreleased]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.4.1...v0.4.2
