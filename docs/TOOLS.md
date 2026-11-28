@@ -130,7 +130,11 @@ the other site's `SITE_DIR`. `bin/check` always checks this repository; `bin/dep
     plugins) naming nothing of this site (`site.json`'s `namesSharedCodeMustNotUse`; each site
     checks the tools it uses, so no list of sites' names is kept with the tools), and each plugin
     declaring `Update URI: false`; `site.json` following the rules in `tools/site-settings.jq` (a
-    missing or unknown field, or a wrong kind of value, fails and is named); the routines' links to
+    missing or unknown field, or a wrong kind of value, fails and is named); the theme's
+    `site-facts.json` following `tools/site-facts.jq` (2.4b-2, T31: required; each old address a
+    lower-case path, each entry with its `reason`, each outside source a directive and an
+    `https://` address the Site Hardening plugin accepts, `Organization` among the types, no old
+    address twice; each problem named by its entry); the routines' links to
     their site details (1.5c); the status sheet (`records/status.md`) answering every item of the
     blank (`tools/status-sheet-blank.md`: done or exception, with its check or reason and a date,
     its recorded exceptions there, every file it names in the site's repository or the tools',
@@ -155,16 +159,17 @@ the other site's `SITE_DIR`. `bin/check` always checks this repository; `bin/dep
   - **The site's own checks:** every `tests/checks/*.sh`, loaded in name order; each calls
     `run_check` for its checks and may use what `bin/check` has loaded (`tools/check-lib.sh`,
     the `site.json` readers, `tools/theme-tokens.sh`, `SITE_THEME_DIR`). Here: `starter.sh`
-    (until 2.4: the starter's `site.json` and pages, its `theme.json` schema and tokens, exactly
-    the site-layer files of `tools/site-layer-files.txt`, none of this site's names, PHPCS and
-    PHPStan).
+    (until 2.4c: the starter's `site.json`, `site-facts.json` and pages, its `theme.json` schema
+    and tokens, its shared theme files identical to this site's, none of this site's names, PHPCS
+    and PHPStan).
   - **The tools' self-check** (`tests/tools/check-tools.sh`), run by `bin/check` only while the
     tools are the site's own (this repository until template plan 2.1d), and by the tools' own
     repository; it needs no site. The tools' Composer install, validation and audit and the npm
     audits; PHPCS and PHPStan of the dev-only must-use plugins (`tools/php-check/`, prefix
     `devsite`); every script in `bin/` executable; every `site.json` field explained in
     `tools/site-settings.md` and nothing else, and the `site.json` checks refusing the broken
-    examples in `tests/tools/site-settings/`; `bin/dev-site`'s refusals on known examples
+    examples in `tests/tools/site-settings/`; the `site-facts.json` check refusing those in
+    `tests/tools/site-facts/` (2.4b-2, T31); `bin/dev-site`'s refusals on known examples
     (`tests/tools/dev-site/`); the Playwright image matching `@playwright/test`; each tool's
     tests on known situations, against stand-ins, nothing over the network: the versions check's
     alerts (`tests/tools/versions-check/`, 1.3c), the debug log rule (`tests/tools/debug-log/`),
@@ -172,10 +177,9 @@ the other site's `SITE_DIR`. `bin/check` always checks this repository; `bin/dep
     the page check (`tests/tools/site-check/`, 1.4b), the deploy's checks (`tests/tools/deploy/`:
     `bin/deploy` in a throwaway Git repository against stand-ins for GitHub, the servers, the
     Composer build and WordPress.org's checksums, 1.4d-1, 1.4d-2), the design-token and
-    site-layer checks and the theme assembly (`tests/tools/theme-tokens/`, `site-layer/`,
-    `site-theme/`, 1.6b, 1.6c), the dev-site guard with a stand-in for docker
-    (`tests/tools/dev-site-guard/`) and the tools apart from a stand-in site (`tests/tools/paths/`,
-    T19); the browser tests' types without a site's specs; ShellCheck on `bin/`, the scenario
+    site-layer checks (`tests/tools/theme-tokens/`, `site-layer/`, 1.6b), the dev-site guard
+    with a stand-in for docker (`tests/tools/dev-site-guard/`) and the tools apart from a
+    stand-in site (`tests/tools/paths/`, T19); the browser tests' types without a site's specs; ShellCheck on `bin/`, the scenario
     checks and the tools' tests.
 - GitHub runs `bin/check` and the dev site's tests on every pull request, weekly and by the "Run
   workflow" button (`.github/workflows/check.yml`); a pull request merges only when both pass and

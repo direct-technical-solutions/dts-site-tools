@@ -6,6 +6,37 @@ changed `site.json` field, and every change to what `bin/check` gives a site's o
 versions follow [Semantic Versioning](https://semver.org/), where below 1.0 a minor version may
 change how a site calls the tools.
 
+## [0.6.0] - 2026-11-27
+
+### Added
+
+- **Breaking, for a site's theme:** `bin/check` requires the theme's `site-facts.json` and checks
+  it against the rules in `tools/site-facts.jq` (template plan 2.4b-2, T31): the site's facts the
+  shared theme code reads (old addresses, the organization's types, the towns served, the
+  outside sources its pages need), moved out of PHP. Each entry has a `reason`; each old address
+  is a lower-case path; each outside source a directive and an `https://` address the Site
+  Hardening plugin accepts; `Organization` is among the types; no old address appears twice.
+  Each problem is named by its entry. Tried on known examples (`tests/tools/site-facts/`).
+- A site's own checks may call `site_facts_problems <file>` (`tools/site-settings.sh`), as the
+  starter's check does for its theme.
+- A scenario check (`tests/scenario/generic/dev-site-facts.sh`): the theme reads a valid
+  `site-facts.json` as written, and a missing or broken file, or one fact of the wrong shape,
+  leaves the defaults and a line in the PHP error log.
+
+### Changed
+
+- **Breaking:** the site layer (`tools/site-layer-files.txt`) names `site-facts.json` and
+  `includes/site-text.php` (the guide's link example, translated text) in place of
+  `includes/site-facts.php`.
+- The rule engine of `tools/site-settings.jq` is shared: `rules_problems_at` takes the file's
+  name for a problem with the whole file; `site_settings_problems_at` is unchanged.
+
+### Removed
+
+- **Breaking:** the theme assembly (`tools/site-theme.sh`, its test, and `bin/dev-site`'s
+  assembling of a site's `theme/` folder): every site, the starter included, keeps its full
+  theme (template plan T29, 2.4b-3).
+
 ## [0.5.0] - 2026-11-27
 
 ### Changed
@@ -225,7 +256,8 @@ change how a site calls the tools.
   PHPCSUtils 1.2.3, PHPCSExtra 1.5.1, PHPStan 2.3.5, PHPStan for WordPress 2.0.4 and the
   WordPress stubs 7.1.2.
 
-[Unreleased]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/direct-technical-solutions/dts-site-tools/compare/v0.4.0...v0.4.1

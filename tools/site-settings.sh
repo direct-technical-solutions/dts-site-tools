@@ -24,9 +24,6 @@ readonly SITE_DEV_SETUP_FILE="$SITE_DIR/tests/dev-setup.sh"
 # type check into the tools' tests/e2e/specs/dev/site/, where they run with the shared specs.
 readonly SITE_BROWSER_SPECS_DIR="$SITE_DIR/tests/browser"
 readonly SITE_BROWSER_SPECS_MOUNT_POINT="/e2e/specs/dev/site"
-# A site layer of its own (the starter's theme/, template plan 1.6b): the site's full theme is then
-# assembled from it into themes/ by tools/site-theme.sh before each build.
-readonly SITE_LAYER_DIR="$SITE_DIR/theme"
 readonly SITE_SETTINGS_EXPLANATION="$TOOLS_DIR/tools/site-settings.md"
 readonly SITE_SETTINGS_RULES_DIR="$TOOLS_DIR/tools"
 # Written from site.json (write_site_compose_file); ignored by git, never edited by hand.
@@ -50,6 +47,17 @@ site_settings_jq() {
 site_settings_problems() {
   local settings_file="$1"
   site_settings_jq 'site_settings_problems' -r "$settings_file"
+}
+
+# A theme's site-facts.json (template plan 2.4b-2, T31): the site's facts the shared theme code
+# reads, at the top of the theme's folder. Its rules are in tools/site-facts.jq.
+readonly SITE_FACTS_FILE_NAME="site-facts.json"
+
+# Prints one line per problem in a site-facts.json, nothing for a valid one; fails, with jq's own
+# message, when the file is not JSON at all. A site's own checks may call it (the starter's theme).
+site_facts_problems() {
+  local facts_file="$1"
+  jq -L "$SITE_SETTINGS_RULES_DIR" -r 'include "site-facts"; site_facts_problems' "$facts_file"
 }
 
 # One text value of site.json by its jq path, such as ".theme"; fails when it is missing or not
