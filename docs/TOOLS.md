@@ -49,7 +49,9 @@ the other site's `SITE_DIR`. `bin/check` always checks this repository; `bin/dep
   with the real booking form from `config/booking-form.txt` and `config/booking-form-mail.json`,
   and its messages after sending ("sent" and "sending failed") from
   `config/booking-form-messages.json` (merged into Contact Form 7's own messages; staging and live
-  get the same texts typed in by hand, in the form's Messages tab),
+  get the same texts typed in by hand, in the form's Messages tab; the shared form tests need two
+  required fields labeled "Your name" and "Your email", a "Send" button, every other field
+  optional, and a mail body naming the name and the address, template plan T32),
   and Yoast SEO, and Simple History, the activity log (template plan 1.5b; a
   scenario check, `dev-activity-log.sh`, shows it records a page edit and a plugin switched off
   and on, with addresses anonymized), test pages (`site.json`'s list, their text in `tests/dev-content/`, each with the
@@ -176,8 +178,8 @@ the other site's `SITE_DIR`. `bin/check` always checks this repository; `bin/dep
     the routines' and status sheet's checks (`tests/tools/routines/`, `tests/tools/status-sheet/`),
     the page check (`tests/tools/site-check/`, 1.4b), the deploy's checks (`tests/tools/deploy/`:
     `bin/deploy` in a throwaway Git repository against stand-ins for GitHub, the servers, the
-    Composer build and WordPress.org's checksums, 1.4d-1, 1.4d-2), the design-token and
-    site-layer checks (`tests/tools/theme-tokens/`, `site-layer/`, 1.6b), the dev-site guard
+    Composer build and WordPress.org's checksums, 1.4d-1, 1.4d-2), the design-token
+    check (`tests/tools/theme-tokens/`, 1.6b), the dev-site guard
     with a stand-in for docker (`tests/tools/dev-site-guard/`) and the tools apart from a
     stand-in site (`tests/tools/paths/`, T19); the browser tests' types without a site's specs; ShellCheck on `bin/`, the scenario
     checks and the tools' tests.

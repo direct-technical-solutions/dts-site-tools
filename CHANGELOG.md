@@ -6,6 +6,23 @@ changed `site.json` field, and every change to what `bin/check` gives a site's o
 versions follow [Semantic Versioning](https://semver.org/), where below 1.0 a minor version may
 change how a site calls the tools.
 
+## [Unreleased]
+
+### Changed
+
+- The shared contact form test (`tests/e2e/specs/dev/generic/booking-form.spec.ts`) fills only
+  the two fields every site's form has, the required "Your name" and "Your email", and puts its
+  unique word in the name (template plan T32). A site's other fields are its own and stay empty,
+  so they must be optional.
+
+### Removed
+
+- **Breaking, for a site's own checks:** `tools/site-layer.sh` (`site_layer_listed_files`,
+  `site_layer_differences`) and its test. Its last user was the starter's check in the first
+  site, which leaves with the starter's own repository (template plan 2.4c).
+  `tools/site-layer-files.txt` stays, as the list of a site's own theme files for copying a
+  shared change by hand (T29).
+
 ## [0.6.0] - 2026-11-27
 
 ### Added

@@ -10,6 +10,10 @@ import { sitePagesSplitBy } from '../helpers/test-pages';
 // spam checks send nothing; and its files and Cloudflare's script load only on the page with the form. The site's
 // own configuration runs for real; only Cloudflare is simulated (config/dev-mu-plugins/). The
 // real Turnstile is proven on staging.
+// What the tests need of a site's form (template plan T32): two required fields labeled "Your
+// name" and "Your email" and a "Send" button. Any other field is the site's own and stays empty,
+// so it must be optional. The unique word goes in the name and the address, which the mail's
+// body must both name.
 // The form's page and a page without it, found by the form's shortcode in the site's test pages
 // (any site's, template plan 1.6a), so no page is named here; either one missing fails at once.
 const FORM_SHORTCODE = '[contact-form-7 ';
@@ -52,12 +56,16 @@ async function simulateTurnstile(page: Page, token: string): Promise<void> {
 	);
 }
 
-async function fillForm(page: Page, marker: string, email: string): Promise<void> {
+// The visitor's address carries the unique word too, so a test that empties the name (or breaks
+// the address) still leaves the word in the other field, and a mail sent anyway is found.
+function visitorEmail(marker: string): string {
+	return `visitor.${marker}@example.test`;
+}
+
+async function fillForm(page: Page, marker: string): Promise<void> {
 	await page.goto(BOOK_PATH, { waitUntil: 'networkidle' });
 	await page.getByLabel('Your name').fill(`Visitor ${marker}`);
-	await page.getByLabel('Your email').fill(email);
-	await page.getByLabel('Event date').fill('2030-06-15');
-	await page.getByLabel('About your event').fill(`A sample event, ${marker}`);
+	await page.getByLabel('Your email').fill(visitorEmail(marker));
 }
 
 async function mailsWith(request: APIRequestContext, marker: string): Promise<MailpitSummary[]> {
@@ -110,7 +118,7 @@ test.describe('sending', () => {
 	test('a visitor\'s request reaches the inbox, and a reply goes to the visitor', async ({ page, request }) => {
 		await simulateTurnstile(page, PASSING_TOKEN);
 		const marker = uniqueMarker();
-		await fillForm(page, marker, 'visitor@example.test');
+		await fillForm(page, marker);
 		await page.getByRole('button', { name: 'Send' }).click();
 		await expect(page.locator(SENT_FORM), 'the form reports it was sent').toBeVisible();
 		await expect(page.locator(RESPONSE_OUTPUT), 'the message from config/').toHaveText(configuredMessage('mail_sent_ok'));
@@ -121,7 +129,7 @@ test.describe('sending', () => {
 			throw new Error('the mail Mailpit had just reported is gone');
 		}
 		expect(mail.To.map((to) => to.Address), 'sent to the site admin').toEqual([process.env.DEV_ADMIN_EMAIL]);
-		expect(mail.ReplyTo.map((replyTo) => replyTo.Address), 'a reply goes to the visitor').toEqual(['visitor@example.test']);
+		expect(mail.ReplyTo.map((replyTo) => replyTo.Address), 'a reply goes to the visitor').toEqual([visitorEmail(marker)]);
 		// The subject reaches the mail service's records and the failure alerts (plan step 8), so
 		// the visitor's name is only in the body, which only the site owner reads.
 		expect(mail.Subject, 'the subject does not name the visitor').not.toContain(marker);
@@ -132,7 +140,7 @@ test.describe('sending', () => {
 		await simulateTurnstile(page, PASSING_TOKEN);
 		await setMailpitRefusal(request, true);
 		const marker = uniqueMarker();
-		await fillForm(page, marker, 'visitor@example.test');
+		await fillForm(page, marker);
 		await page.getByRole('button', { name: 'Send' }).click();
 		await expect(page.locator(FAILED_FORM), 'the form reports the failure').toBeVisible();
 		await expect(page.locator(RESPONSE_OUTPUT), 'the message from config/').toHaveText(configuredMessage('mail_sent_ng'));
@@ -147,7 +155,7 @@ for (const [problem, fill] of [
 	test(`a request with ${problem} is refused and sends nothing`, async ({ page, request }) => {
 		await simulateTurnstile(page, PASSING_TOKEN);
 		const marker = uniqueMarker();
-		await fillForm(page, marker, 'visitor@example.test');
+		await fillForm(page, marker);
 		await fill(page);
 		await page.getByRole('button', { name: 'Send' }).click();
 		await expect(page.locator(FIELD_ERROR), 'the problem is shown at its field').toHaveCount(1);
@@ -165,7 +173,7 @@ for (const [description, token] of [
 	test(`a request ${description} is treated as spam and sends nothing`, async ({ page, request }) => {
 		await simulateTurnstile(page, token);
 		const marker = uniqueMarker();
-		await fillForm(page, marker, 'visitor@example.test');
+		await fillForm(page, marker);
 		await page.getByRole('button', { name: 'Send' }).click();
 		await expect(page.locator(SPAM_FORM), 'the form reports spam').toBeVisible();
 		expect(await mailsWith(request, marker), 'no mail').toEqual([]);
