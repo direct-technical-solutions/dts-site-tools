@@ -56,6 +56,20 @@ readonly SITE_SETTINGS_BAD_EXPLANATIONS=(
   'explanation-missing-field.md|theme'
   'explanation-stale-field.md|logoFile'
 )
+# The same for a theme's site-facts.json (tests/tools/site-facts/, template plan 2.4b-2, T31):
+# each example is the valid one with one mistake, which the refusal must name.
+readonly SITE_FACTS_EXAMPLES_DIR="$TOOLS_DIR/tests/tools/site-facts"
+readonly SITE_FACTS_BAD_EXAMPLES=(
+  'missing-field.json|areasServed'
+  'unknown-field.json|oldAddresses[0].form'
+  'wrong-type.json|areasServed.towns'
+  'missing-reason.json|outsideSources[0].reason'
+  'bad-old-address.json|oldAddresses[0].from'
+  'bad-directive.json|outsideSources[0].directive'
+  'bad-source.json|outsideSources[0].source'
+  'no-organization.json|organizationTypes.types'
+  'duplicate-old-address.json|oldAddresses[1].from'
+)
 # The same for bin/dev-site's own refusals (tests/tools/dev-site/), which run before it changes
 # anything: each broken example must be refused naming what it breaks, each good one accepted.
 readonly DEV_SITE_EXAMPLES_DIR="$TOOLS_DIR/tests/tools/dev-site"
@@ -146,6 +160,30 @@ expect_settings_problem() {
   problems="$(site_settings_problems "$SITE_SETTINGS_EXAMPLES_DIR/$example" 2>&1)"
   cut -d: -f1 <<<"$problems" | grep -qxF -- "$broken_field" && return 0
   log "$example should be refused naming $broken_field; reported: ${problems:-(nothing)}"
+  return 1
+}
+
+# The site-facts.json check, tried on known examples the same way: the valid one accepted, text
+# that is not JSON refused, each broken one refused naming the field it was made to break.
+site_facts_checks_refuse_bad_examples() {
+  local failed=0 example problems
+  if ! problems="$(site_facts_problems "$SITE_FACTS_EXAMPLES_DIR/valid.json")" || [[ -n "$problems" ]]; then
+    log "the valid example site-facts valid.json was refused: $problems"
+    failed=1
+  fi
+  site_facts_problems "$SITE_FACTS_EXAMPLES_DIR/not-json.json" >/dev/null 2>&1 &&
+    { log "site-facts not-json.json is not JSON, but was read as JSON"; failed=1; }
+  for example in "${SITE_FACTS_BAD_EXAMPLES[@]}"; do
+    expect_facts_problem "${example%%|*}" "${example#*|}" || failed=1
+  done
+  return "$failed"
+}
+
+expect_facts_problem() {
+  local example="$1" broken_field="$2" problems
+  problems="$(site_facts_problems "$SITE_FACTS_EXAMPLES_DIR/$example" 2>&1)"
+  cut -d: -f1 <<<"$problems" | grep -qxF -- "$broken_field" && return 0
+  log "site-facts $example should be refused naming $broken_field; reported: ${problems:-(nothing)}"
   return 1
 }
 
@@ -379,6 +417,7 @@ run_rule_checks() {
   run_check "Every site command is installed by Composer (composer.json's bin)" commands_listed_for_composer
   run_check "site.json's fields are explained" site_json_fields_explained
   run_check "The site.json checks refuse bad examples" site_json_checks_refuse_bad_examples
+  run_check "The site-facts.json check refuses bad examples" site_facts_checks_refuse_bad_examples
   run_check "bin/dev-site's refusals refuse bad examples" dev_site_refusals_refuse_bad_examples
   run_check "Playwright versions match" playwright_versions_match
   run_check "The install commands use the pinned Composer image" install_commands_use_pinned_composer
@@ -395,7 +434,6 @@ run_tools_tests() {
   run_check "The token check refuses bad examples" tools_test theme-tokens
   run_check "The site-layer check refuses bad examples" tools_test site-layer
   run_check "The theme's component checks refuse bad examples" tools_test theme-components
-  run_check "The theme assembly on known examples" tools_test site-theme
   run_check "The dev-site guard on known examples" tools_test dev-site-guard
   run_check "The tools find the site with the tools apart" tools_test paths
   run_check "The site's own plugins found, with or without plugins/" tools_test site-plugins

@@ -65,9 +65,11 @@ def site_settings_join_path($where; $key):
   if $where == "" then $key else "\($where).\($key)" end;
 
 # Each problem with the value at the input, as a line naming where it is and what was expected.
-# Objects are checked for missing, unknown and then each known field; arrays item by item.
-def site_settings_problems_at($rules; $where):
-  def shown: if $where == "" then "site.json" else $where end;
+# Objects are checked for missing, unknown and then each known field; arrays item by item. Shared
+# by every settings file the tools check (site.json here, a theme's site-facts.json in
+# tools/site-facts.jq); $file names the file in a problem with the whole of it.
+def rules_problems_at($rules; $where; $file):
+  def shown: if $where == "" then $file else $where end;
   if type != $rules.type then
     "\(shown): expected \($rules.type), found \(type)"
   elif $rules.type == "object" then
@@ -80,10 +82,10 @@ def site_settings_problems_at($rules; $where):
         | "\(site_settings_join_path($where; .)): not a known field (a typo?)"),
       ($rules.fields | to_entries[] | select(.key as $key | $object | has($key))
         | .key as $key | .value as $field_rules
-        | $object[$key] | site_settings_problems_at($field_rules; site_settings_join_path($where; $key)))
+        | $object[$key] | rules_problems_at($field_rules; site_settings_join_path($where; $key); $file))
   elif $rules.type == "array" then
     to_entries[] | .key as $index | .value
-    | site_settings_problems_at($rules.items; "\($where)[\($index)]")
+    | rules_problems_at($rules.items; "\($where)[\($index)]"; $file)
   elif ($rules.allowedValues // null) != null and (. as $value | $rules.allowedValues | any(.[]; . == $value) | not) then
     "\(shown): \(tojson) must be one of \($rules.allowedValues | map(tojson) | join(", "))"
   elif ($rules.pattern // null) != null and (test($rules.pattern) | not) then
@@ -91,6 +93,8 @@ def site_settings_problems_at($rules; $where):
   else
     empty
   end;
+
+def site_settings_problems_at($rules; $where): rules_problems_at($rules; $where; "site.json");
 
 # Rules across fields, which the field-by-field rules cannot see. Staging and live must be two
 # places: with the same short name or address, a deploy to staging would land on live, skipping

@@ -156,6 +156,26 @@ site_json_is_valid() {
   return 1
 }
 
+# The theme's site-facts.json (template plan 2.4b-2, T31) against the rules in
+# tools/site-facts.jq. Required: the theme reads it on every page load, and without it a server
+# would quietly lose the site's redirects and the outside sources its pages need.
+site_facts_are_valid() {
+  local facts_file="$SITE_THEME_DIR/$SITE_FACTS_FILE_NAME" problems shown
+  shown="${facts_file#"$PROJECT_DIR"/}"
+  [[ -f "$facts_file" ]] || {
+    log "$shown is missing; the theme reads the site's facts from it (tools/site-facts.jq has its fields)"
+    return 1
+  }
+  problems="$(site_facts_problems "$facts_file")" || {
+    log "$shown is not valid JSON (jq's message is above)"
+    return 1
+  }
+  [[ -z "$problems" ]] && return 0
+  log "$shown does not follow the rules in tools/site-facts.jq:"
+  printf '%s\n' "$problems" | sed 's/^/    /' >&2
+  return 1
+}
+
 # Every plugin in site-packages/composer.lock is one the tools can install and downloads from its
 # one trusted source: a WordPress.org plugin from WordPress.org's own server (the addresses come
 # from WPackagist, a third party, template plan T8), a DTS plugin as GitHub's archive of its
@@ -336,6 +356,7 @@ run_standards_and_rule_checks() {
   run_check "The tools name nothing of this site" tools_name_nothing_of_this_site
   run_check "Plugins never updated from WordPress.org" plugins_never_updated_from_wordpress_org
   run_check "site.json follows its rules" site_json_is_valid
+  run_check "The theme's site-facts.json follows its rules" site_facts_are_valid
   run_check "The routines link to their site details" routines_link_to_site_details
   run_check "The status sheet answers every item" status_sheet_complete
 }

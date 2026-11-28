@@ -1,0 +1,39 @@
+{
+  "oldAddresses": [
+    {
+      "from": "old-page",
+      "to": "new-page",
+      "reason": "The old page became the new one."
+    },
+    {
+      "from": "parent/old-child",
+      "to": "new-page",
+      "reason": "A nested old page."
+    }
+  ],
+  "organizationTypes": {
+    "types": [
+      "Organization",
+      "LocalBusiness"
+    ],
+    "reason": "A local business."
+  },
+  "areasServed": {
+    "towns": [
+      "Town A, State"
+    ],
+    "reason": "Where the business works."
+  },
+  "outsideSources": [
+    {
+      "directive": "script-src",
+      "source": "http://challenges.cloudflare.com",
+      "reason": "The form's check."
+    },
+    {
+      "directive": "frame-src",
+      "source": "https://www.youtube.com",
+      "reason": "Pasted video players."
+    }
+  ]
+}
